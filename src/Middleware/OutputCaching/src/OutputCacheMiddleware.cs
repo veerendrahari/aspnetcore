@@ -261,24 +261,20 @@ internal sealed class OutputCacheMiddleware
             context.IsCacheEntryFresh = false;
         }
 
+        using var cachedResponse = context.CachedResponse; // recycle pieces on the way out
         if (context.IsCacheEntryFresh)
         {
-            var cachedResponseHeaders = context.CachedResponse.Headers;
-
             // Check conditional request rules
             if (ContentIsNotModified(context))
             {
                 _logger.NotModifiedServed();
                 context.HttpContext.Response.StatusCode = StatusCodes.Status304NotModified;
 
-                if (cachedResponseHeaders != null)
+                foreach (var key in HeadersToIncludeIn304)
                 {
-                    foreach (var key in HeadersToIncludeIn304)
+                    if (cachedResponse.TryFindHeader(key, out var values))
                     {
-                        if (cachedResponseHeaders.TryGetValue(key, out var values))
-                        {
-                            context.HttpContext.Response.Headers[key] = values;
-                        }
+                        context.HttpContext.Response.Headers[key] = values;
                     }
                 }
             }
@@ -286,15 +282,9 @@ internal sealed class OutputCacheMiddleware
             {
                 var response = context.HttpContext.Response;
                 // Copy the cached status code and response headers
-                response.StatusCode = context.CachedResponse.StatusCode;
+                response.StatusCode = cachedResponse.StatusCode;
 
-                if (context.CachedResponse.Headers != null)
-                {
-                    foreach (var header in context.CachedResponse.Headers)
-                    {
-                        response.Headers[header.Key] = header.Value;
-                    }
-                }
+                cachedResponse.CopyHeadersTo(response.Headers);
 
                 // Note: int64 division truncates result and errors may be up to 1 second. This reduction in
                 // accuracy of age calculation is considered appropriate since it is small compared to clock
@@ -304,11 +294,11 @@ internal sealed class OutputCacheMiddleware
                 // Copy the cached response body
                 var body = context.CachedResponse.Body;
 
-                if (body != null && body.Length > 0)
+                if (!body.IsEmpty)
                 {
                     try
                     {
-                        await body.CopyToAsync(response.BodyWriter, context.HttpContext.RequestAborted);
+                        await context.CachedResponse.CopyToAsync(response.BodyWriter, context.HttpContext.RequestAborted);
                     }
                     catch (OperationCanceledException)
                     {
@@ -383,22 +373,10 @@ internal sealed class OutputCacheMiddleware
             headers.Date = HeaderUtilities.FormatDate(context.ResponseTime!.Value);
 
             // Store the response on the state
-            context.CachedResponse = new OutputCacheEntry
-            {
-                Created = context.ResponseTime!.Value,
-                StatusCode = response.StatusCode,
-                Tags = context.Tags.ToArray()
-            };
-
-            foreach (var header in headers)
-            {
-                context.CachedResponse.Headers ??= new();
-
-                if (!string.Equals(header.Key, HeaderNames.Age, StringComparison.OrdinalIgnoreCase))
-                {
-                    context.CachedResponse.Headers[header.Key] = header.Value;
-                }
-            }
+            var cacheEntry = new OutputCacheEntry(context.ResponseTime!.Value, response.StatusCode);
+            cacheEntry.CopyTagsFrom(context.Tags);
+            cacheEntry.CopyHeadersFrom(headers);
+            context.CachedResponse = cacheEntry;
 
             return;
         }
@@ -423,14 +401,6 @@ internal sealed class OutputCacheMiddleware
                 || (cachedResponseBody.Length == 0
                     && HttpMethods.IsHead(context.HttpContext.Request.Method)))
             {
-                var response = context.HttpContext.Response;
-                // Add a content-length if required
-                if (!response.ContentLength.HasValue && StringValues.IsNullOrEmpty(response.Headers.TransferEncoding))
-                {
-                    context.CachedResponse.Headers ??= new();
-                    context.CachedResponse.Headers.ContentLength = cachedResponseBody.Length;
-                }
-
                 context.CachedResponse.Body = cachedResponseBody;
 
                 if (string.IsNullOrEmpty(context.CacheKey))
@@ -515,7 +485,7 @@ internal sealed class OutputCacheMiddleware
 
     internal bool ContentIsNotModified(OutputCacheContext context)
     {
-        var cachedResponseHeaders = context.CachedResponse.Headers;
+        var cachedResponse = context.CachedResponse;
         var ifNoneMatchHeader = context.HttpContext.Request.Headers.IfNoneMatch;
 
         if (!StringValues.IsNullOrEmpty(ifNoneMatchHeader))
@@ -525,9 +495,9 @@ internal sealed class OutputCacheMiddleware
                 _logger.NotModifiedIfNoneMatchStar();
                 return true;
             }
-
-            if (cachedResponseHeaders != null && !StringValues.IsNullOrEmpty(cachedResponseHeaders[HeaderNames.ETag])
-                && EntityTagHeaderValue.TryParse(cachedResponseHeaders[HeaderNames.ETag].ToString(), out var eTag)
+            
+            if (cachedResponse.TryFindHeader(HeaderNames.ETag, out var raw)
+                && EntityTagHeaderValue.TryParse(raw.ToString(), out var eTag)
                 && EntityTagHeaderValue.TryParseList(ifNoneMatchHeader, out var ifNoneMatchETags))
             {
                 for (var i = 0; i < ifNoneMatchETags?.Count; i++)
@@ -546,13 +516,8 @@ internal sealed class OutputCacheMiddleware
             var ifModifiedSince = context.HttpContext.Request.Headers.IfModifiedSince;
             if (!StringValues.IsNullOrEmpty(ifModifiedSince))
             {
-                if (cachedResponseHeaders == null)
-                {
-                    return false;
-                }
-
-                if (!HeaderUtilities.TryParseDate(cachedResponseHeaders[HeaderNames.LastModified].ToString(), out var modified) &&
-                    !HeaderUtilities.TryParseDate(cachedResponseHeaders[HeaderNames.Date].ToString(), out modified))
+                if (!HeaderUtilities.TryParseDate(cachedResponse.FindHeader(HeaderNames.LastModified).ToString(), out var modified) &&
+                    !HeaderUtilities.TryParseDate(cachedResponse.FindHeader(HeaderNames.Date).ToString(), out modified))
                 {
                     return false;
                 }

@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Buffers;
 using Microsoft.AspNetCore.WriteStream;
 
 namespace Microsoft.AspNetCore.OutputCaching;
@@ -42,13 +43,13 @@ internal sealed class OutputCacheStream : Stream
         }
     }
 
-    internal CachedResponseBody GetCachedResponseBody()
+    internal ReadOnlySequence<byte> GetCachedResponseBody()
     {
         if (!BufferingEnabled)
         {
             throw new InvalidOperationException("Buffer stream cannot be retrieved since buffering is disabled.");
         }
-        return new CachedResponseBody(_segmentWriteStream.GetSegments(), _segmentWriteStream.Length);
+        return RecyclingReadOnlySequenceSegment.CreateSequence(_segmentWriteStream.GetSegments());
     }
 
     internal void DisableBuffering()
