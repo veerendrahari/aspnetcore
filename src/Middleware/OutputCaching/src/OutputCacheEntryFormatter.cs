@@ -8,6 +8,7 @@ using System.Formats.Asn1;
 using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.Extensions.Primitives;
+using Microsoft.Net.Http.Headers;
 
 namespace Microsoft.AspNetCore.OutputCaching;
 /// <summary>
@@ -365,9 +366,81 @@ internal static class OutputCacheEntryFormatter
 
     static readonly string[] CommonHeaders = new string[]
     {
-        // to remove values, use ""; DO NOT just remove the line
-        ""
-
+        // to remove values, use ""; DO NOT just remove the line, and do not re-order
+        // NOTE: arbitrary common strings are fine - it doesn't all have to be headers
+        HeaderNames.Accept,
+        HeaderNames.AcceptCharset,
+        HeaderNames.AcceptEncoding,
+        HeaderNames.AcceptLanguage,
+        HeaderNames.AcceptRanges,
+        HeaderNames.AccessControlAllowCredentials,
+        HeaderNames.AccessControlAllowHeaders,
+        HeaderNames.AccessControlAllowMethods,
+        HeaderNames.AccessControlAllowOrigin,
+        HeaderNames.AccessControlExposeHeaders,
+        HeaderNames.AccessControlMaxAge,
+        HeaderNames.AccessControlRequestHeaders,
+        HeaderNames.AccessControlRequestMethod,
+        HeaderNames.Age,
+        HeaderNames.Allow,
+        HeaderNames.AltSvc,
+        HeaderNames.Authorization,
+        HeaderNames.Baggage,
+        HeaderNames.CacheControl,
+        HeaderNames.Connection,
+        HeaderNames.ContentDisposition,
+        HeaderNames.ContentEncoding,
+        HeaderNames.ContentLanguage,
+        HeaderNames.ContentLength,
+        HeaderNames.ContentLocation,
+        HeaderNames.ContentMD5,
+        HeaderNames.ContentRange,
+        HeaderNames.ContentSecurityPolicy,
+        HeaderNames.ContentSecurityPolicyReportOnly,
+        HeaderNames.ContentType,
+        HeaderNames.CorrelationContext,
+        HeaderNames.Cookie,
+        HeaderNames.Date,
+        HeaderNames.DNT,
+        HeaderNames.ETag,
+        HeaderNames.Expires,
+        HeaderNames.Expect,
+        HeaderNames.From,
+        HeaderNames.Host,
+        HeaderNames.KeepAlive,
+        HeaderNames.IfMatch,
+        HeaderNames.IfModifiedSince,
+        HeaderNames.IfNoneMatch,
+        HeaderNames.IfRange,
+        HeaderNames.IfUnmodifiedSince,
+        HeaderNames.LastModified,
+        HeaderNames.Link,
+        HeaderNames.Location,
+        HeaderNames.MaxForwards,
+        HeaderNames.Origin,
+        HeaderNames.Pragma,
+        HeaderNames.ProxyAuthenticate,
+        HeaderNames.ProxyAuthorization,
+        HeaderNames.ProxyConnection,
+        HeaderNames.Range,
+        HeaderNames.Referer,
+        HeaderNames.RetryAfter,
+        HeaderNames.Server,
+        HeaderNames.StrictTransportSecurity,
+        HeaderNames.TE,
+        HeaderNames.Trailer,
+        HeaderNames.TransferEncoding,
+        HeaderNames.Translate,
+        HeaderNames.TraceParent,
+        HeaderNames.TraceState,
+        HeaderNames.Vary,
+        HeaderNames.Via,
+        HeaderNames.Warning,
+        "text/html",
+        "text/html; charset=utf-8",
+        "text/xml",
+        "text/json",
+        "application/x-binary",
     };
 
     static readonly FrozenDictionary<string, int> CommonHeadersLookup = BuildCommonHeadersLookup();
