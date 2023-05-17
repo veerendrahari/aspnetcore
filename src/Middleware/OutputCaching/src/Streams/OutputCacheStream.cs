@@ -49,7 +49,7 @@ internal sealed class OutputCacheStream : Stream
         {
             throw new InvalidOperationException("Buffer stream cannot be retrieved since buffering is disabled.");
         }
-        return RecyclingReadOnlySequenceSegment.CreateSequence(_segmentWriteStream.GetSegments());
+        return _segmentWriteStream.DetachPayload();
     }
 
     internal void DisableBuffering()
@@ -123,7 +123,33 @@ internal sealed class OutputCacheStream : Stream
             }
             else
             {
-                _segmentWriteStream.Write(buffer, offset, count);
+                _segmentWriteStream.Write(buffer.AsSpan(offset, count));
+            }
+        }
+    }
+
+    public override void Write(ReadOnlySpan<byte> buffer)
+    {
+        try
+        {
+            _startResponseCallback();
+            _innerStream.Write(buffer);
+        }
+        catch
+        {
+            DisableBuffering();
+            throw;
+        }
+
+        if (BufferingEnabled)
+        {
+            if (_segmentWriteStream.Length + buffer.Length > _maxBufferSize)
+            {
+                DisableBuffering();
+            }
+            else
+            {
+                _segmentWriteStream.Write(buffer);
             }
         }
     }
@@ -152,7 +178,7 @@ internal sealed class OutputCacheStream : Stream
             }
             else
             {
-                await _segmentWriteStream.WriteAsync(buffer, cancellationToken);
+                _segmentWriteStream.Write(buffer.Span);
             }
         }
     }
@@ -180,6 +206,15 @@ internal sealed class OutputCacheStream : Stream
                 _segmentWriteStream.WriteByte(value);
             }
         }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _segmentWriteStream?.Dispose();
+        }
+        base.Dispose(disposing);
     }
 
     public override IAsyncResult BeginWrite(byte[] buffer, int offset, int count, AsyncCallback? callback, object? state)

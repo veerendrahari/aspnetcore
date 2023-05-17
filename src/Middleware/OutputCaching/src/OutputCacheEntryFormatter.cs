@@ -306,7 +306,7 @@ internal static class OutputCacheEntryFormatter
                 // nothing to do
                 break;
             case 1:
-                result.SetBody(new ReadOnlySequence<byte>(ReadSegment(ref reader)));
+                result.SetBody(new ReadOnlySequence<byte>(ReadSegment(ref reader)), recycleBuffers: false); // we're reusing the live payload buffers
                 break;
             case < 0:
                 throw new InvalidOperationException();
@@ -316,7 +316,7 @@ internal static class OutputCacheEntryFormatter
                 {
                     last = RecyclingReadOnlySequenceSegment.Create(ReadSegment(ref reader), last);
                 }
-                result.SetBody(new ReadOnlySequence<byte>(first, 0, last, last.Length));
+                result.SetBody(new ReadOnlySequence<byte>(first, 0, last, last.Length), recycleBuffers: false);  // we're reusing the live payload buffers
                 break;
         }
 

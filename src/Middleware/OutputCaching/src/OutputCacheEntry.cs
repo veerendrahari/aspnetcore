@@ -3,6 +3,7 @@
 
 using System.Buffers;
 using System.IO.Pipelines;
+using System.Net.Security;
 using System.Runtime.InteropServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
@@ -17,6 +18,8 @@ internal sealed class OutputCacheEntry : IDisposable
         Created = created;
         StatusCode = statusCode;
     }
+
+    private bool _recycleBuffers; // does this instance own the memory behind the segments?
 
     public StringValues FindHeader(string key)
     {
@@ -64,7 +67,11 @@ internal sealed class OutputCacheEntry : IDisposable
 
     // this is intentionally not an internal setter to make it clear that this should not be
     // used from most scenarios; this should consider buffer reuse - you *probably* want CopyFrom
-    internal void SetBody(ReadOnlySequence<byte> value) => Body = value;
+    internal void SetBody(ReadOnlySequence<byte> value, bool recycleBuffers)
+    {
+        Body = value;
+        _recycleBuffers = recycleBuffers;
+    }
 
     /// <summary>
     /// Gets the tags of the cache entry.
@@ -85,7 +92,7 @@ internal sealed class OutputCacheEntry : IDisposable
         Body = default;
         Recycle(tags);
         Recycle(headers);
-        RecyclingReadOnlySequenceSegment.RecycleChain(body);
+        RecyclingReadOnlySequenceSegment.RecycleChain(body, _recycleBuffers);
         // ^^ note that this only recycles the chain, not the actual buffers
     }
     static void Recycle<T>(ReadOnlyMemory<T> value)

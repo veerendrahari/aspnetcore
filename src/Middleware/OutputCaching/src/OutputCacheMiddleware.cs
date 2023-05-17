@@ -404,7 +404,7 @@ internal sealed class OutputCacheMiddleware
                 || (cachedResponseBody.Length == 0
                     && HttpMethods.IsHead(context.HttpContext.Request.Method)))
             {
-                context.CachedResponse.SetBody(cachedResponseBody);
+                context.CachedResponse.SetBody(cachedResponseBody, recycleBuffers: true); // transfer lifetime from the buffer to the cached response
 
                 if (string.IsNullOrEmpty(context.CacheKey))
                 {
