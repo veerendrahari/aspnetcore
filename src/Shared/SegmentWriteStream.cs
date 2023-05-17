@@ -67,6 +67,7 @@ internal sealed class SegmentWriteStream : Stream
         if (_bufferStream.Length > 0)
         {
             // Add the last segment
+            // intentionally not exploiting TryGetBuffer - need standalone copy in _segments
             _segments.Add(_bufferStream.ToArray());
         }
 
@@ -99,10 +100,7 @@ internal sealed class SegmentWriteStream : Stream
 
     public override void Flush()
     {
-        if (!CanWrite)
-        {
-            throw new ObjectDisposedException(nameof(SegmentWriteStream), "The stream has been closed for writing.");
-        }
+        AssertNotClosed();
     }
 
     public override int Read(byte[] buffer, int offset, int count)
@@ -123,20 +121,19 @@ internal sealed class SegmentWriteStream : Stream
     public override void Write(byte[] buffer, int offset, int count)
     {
         ValidateBufferArguments(buffer, offset, count);
-        if (!CanWrite)
-        {
-            throw new ObjectDisposedException(nameof(SegmentWriteStream), "The stream has been closed for writing.");
-        }
+        AssertNotClosed();
 
         Write(buffer.AsSpan(offset, count));
     }
 
     public override void Write(ReadOnlySpan<byte> buffer)
     {
+        AssertNotClosed();
         while (!buffer.IsEmpty)
         {
             if ((int)_bufferStream.Length == _segmentSize)
             {
+                // intentionally not exploiting TryGetBuffer - need standalone copy in _segments
                 _segments.Add(_bufferStream.ToArray());
                 _bufferStream.SetLength(0);
             }
@@ -161,15 +158,20 @@ internal sealed class SegmentWriteStream : Stream
         return default;
     }
 
-    public override void WriteByte(byte value)
+    private void AssertNotClosed()
     {
         if (!CanWrite)
         {
-            throw new ObjectDisposedException(nameof(SegmentWriteStream), "The stream has been closed for writing.");
+            Throw();
         }
-
+        static void Throw() => throw new ObjectDisposedException(nameof(SegmentWriteStream), "The stream has been closed for writing.");
+    }
+    public override void WriteByte(byte value)
+    {
+        AssertNotClosed();
         if ((int)_bufferStream.Length == _segmentSize)
         {
+            // intentionally not exploiting TryGetBuffer - need standalone copy in _segments
             _segments.Add(_bufferStream.ToArray());
             _bufferStream.SetLength(0);
         }

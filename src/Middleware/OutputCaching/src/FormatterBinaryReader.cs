@@ -128,7 +128,7 @@ internal ref struct FormatterBinaryReader
     {
         ArgumentOutOfRangeException.ThrowIfNegative(bytes);
 
-        if (offset + bytes >= length)
+        if (offset + bytes > length)
         {
             ThrowEndOfStream();
         }
@@ -145,7 +145,7 @@ internal ref struct FormatterBinaryReader
     {
         ArgumentOutOfRangeException.ThrowIfNegative(count);
 
-        if (offset + count >= length)
+        if (offset + count > length)
         {
             ThrowEndOfStream();
         }
@@ -162,7 +162,7 @@ internal ref struct FormatterBinaryReader
     {
         ArgumentOutOfRangeException.ThrowIfNegative(count);
 
-        if (offset + count >= length)
+        if (offset + count > length)
         {
             ThrowEndOfStream();
         }

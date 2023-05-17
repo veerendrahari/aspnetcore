@@ -5,6 +5,7 @@ using System.Buffers;
 using System.Collections.Concurrent;
 using Microsoft.AspNetCore.Http;
 using System.Reflection.PortableExecutable;
+using System.IO.Pipelines;
 
 namespace Microsoft.AspNetCore.OutputCaching;
 internal sealed class RecyclingReadOnlySequenceSegment : ReadOnlySequenceSegment<byte>
@@ -62,6 +63,24 @@ internal sealed class RecyclingReadOnlySequenceSegment : ReadOnlySequenceSegment
                     last = Create(segments[i], last);
                 }
                 return new(first, 0, last, last.Length);
+        }
+    }
+
+    public static async ValueTask CopyToAsync(ReadOnlySequence<byte> source, PipeWriter destination, CancellationToken cancellationToken)
+    {
+        if (!source.IsEmpty)
+        {
+            if (source.IsSingleSegment)
+            {
+                await destination.WriteAsync(source.First, cancellationToken);
+            }
+            else
+            {
+                foreach (var segment in source)
+                {
+                    await destination.WriteAsync(segment, cancellationToken);
+                }
+            }
         }
     }
 }

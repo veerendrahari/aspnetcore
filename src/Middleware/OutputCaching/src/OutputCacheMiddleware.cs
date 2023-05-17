@@ -125,9 +125,10 @@ internal sealed class OutputCacheMiddleware
 
                     var executed = false;
 
+                    OutputCacheEntry? cacheEntry = null;
                     if (context.AllowLocking)
                     {
-                        var cacheEntry = await _requestDispatcher.ScheduleAsync(context.CacheKey, key => ExecuteResponseAsync());
+                        cacheEntry = await _requestDispatcher.ScheduleAsync(context.CacheKey, key => ExecuteResponseAsync());
 
                         // The current request was processed, nothing more to do
                         if (executed)
@@ -144,7 +145,8 @@ internal sealed class OutputCacheMiddleware
                         // If the cache entry couldn't be served, continue to processing the request as usual
                     }
 
-                    await ExecuteResponseAsync();
+                    cacheEntry = await ExecuteResponseAsync();
+                    cacheEntry?.Dispose();
 
                     async Task<OutputCacheEntry?> ExecuteResponseAsync()
                     {
@@ -261,7 +263,7 @@ internal sealed class OutputCacheMiddleware
             context.IsCacheEntryFresh = false;
         }
 
-        using var cachedResponse = context.CachedResponse; // recycle pieces on the way out
+        var cachedResponse = context.CachedResponse;
         if (context.IsCacheEntryFresh)
         {
             // Check conditional request rules
@@ -307,9 +309,10 @@ internal sealed class OutputCacheMiddleware
                 }
                 _logger.CachedResponseServed();
             }
+            cachedResponse.Dispose(); // it is intentional that this is not disposed on exception (recycling buffers accessed from unknown state, etc)
             return true;
         }
-
+        cachedResponse.Dispose(); // it is intentional that this is not disposed on exception (recycling buffers accessed from unknown state, etc)
         return false;
     }
 
@@ -373,9 +376,9 @@ internal sealed class OutputCacheMiddleware
             headers.Date = HeaderUtilities.FormatDate(context.ResponseTime!.Value);
 
             // Store the response on the state
-            var cacheEntry = new OutputCacheEntry(context.ResponseTime!.Value, response.StatusCode);
-            cacheEntry.CopyTagsFrom(context.Tags);
-            cacheEntry.CopyHeadersFrom(headers);
+            var cacheEntry = new OutputCacheEntry(context.ResponseTime!.Value, response.StatusCode)
+                .CopyTagsFrom(context.Tags)
+                .CopyHeadersFrom(headers);
             context.CachedResponse = cacheEntry;
 
             return;
@@ -401,7 +404,7 @@ internal sealed class OutputCacheMiddleware
                 || (cachedResponseBody.Length == 0
                     && HttpMethods.IsHead(context.HttpContext.Request.Method)))
             {
-                context.CachedResponse.Body = cachedResponseBody;
+                context.CachedResponse.SetBody(cachedResponseBody);
 
                 if (string.IsNullOrEmpty(context.CacheKey))
                 {
@@ -497,6 +500,7 @@ internal sealed class OutputCacheMiddleware
             }
             
             if (cachedResponse.TryFindHeader(HeaderNames.ETag, out var raw)
+                && !StringValues.IsNullOrEmpty(raw)
                 && EntityTagHeaderValue.TryParse(raw.ToString(), out var eTag)
                 && EntityTagHeaderValue.TryParseList(ifNoneMatchHeader, out var ifNoneMatchETags))
             {

@@ -31,7 +31,7 @@ internal sealed class OutputCacheEntry : IDisposable
             if (string.Equals(key, header.Name, StringComparison.OrdinalIgnoreCase))
             {
                 values = header.Value;
-                return !StringValues.IsNullOrEmpty(values);
+                return true;
             }
         }
         values = StringValues.Empty;
@@ -51,17 +51,29 @@ internal sealed class OutputCacheEntry : IDisposable
     /// <summary>
     /// Gets the headers of the cache entry.
     /// </summary>
-    public ReadOnlyMemory<(string Name, StringValues Value)> Headers { get; set; }
+    public ReadOnlyMemory<(string Name, StringValues Value)> Headers { get; private set; }
+
+    // this is intentionally not an internal setter to make it clear that this should not be
+    // used from most scenarios; this should consider buffer reuse - you *probably* want CopyFrom
+    internal void SetHeaders(ReadOnlyMemory<(string Name, StringValues Value)> value) => Headers = value;
 
     /// <summary>
     /// Gets the body of the cache entry.
     /// </summary>
-    public ReadOnlySequence<byte> Body { get; set; }
+    public ReadOnlySequence<byte> Body { get; private set; }
+
+    // this is intentionally not an internal setter to make it clear that this should not be
+    // used from most scenarios; this should consider buffer reuse - you *probably* want CopyFrom
+    internal void SetBody(ReadOnlySequence<byte> value) => Body = value;
 
     /// <summary>
     /// Gets the tags of the cache entry.
     /// </summary>
-    public ReadOnlyMemory<string> Tags { get; set; }
+    public ReadOnlyMemory<string> Tags { get; private set; }
+
+    // this is intentionally not an internal setter to make it clear that this should not be
+    // used from most scenarios; this should consider buffer reuse - you *probably* want CopyFrom
+    internal void SetTags(ReadOnlyMemory<string> value) => Tags = value;
 
     public void Dispose()
     {
@@ -84,7 +96,7 @@ internal sealed class OutputCacheEntry : IDisposable
         }
     }
 
-    internal void CopyTagsFrom(HashSet<string> tags)
+    internal OutputCacheEntry CopyTagsFrom(ICollection<string> tags)
     {
         // only expected in create path; don't reset/recycle existing
         if (tags is not null)
@@ -93,13 +105,21 @@ internal sealed class OutputCacheEntry : IDisposable
             if (count != 0)
             {
                 var arr = ArrayPool<string>.Shared.Rent(count);
-                tags.CopyTo(arr);
+                tags.CopyTo(arr, 0);
                 Tags = new(arr, 0, count);
             }
         }
+        return this;
     }
 
-    internal void CopyHeadersFrom(IHeaderDictionary headers)
+    internal OutputCacheEntry CreateBodyFrom(IList<byte[]> segments) // mainly used from tests
+    {
+        // only expected in create path; don't reset/recycle existing
+        Body = RecyclingReadOnlySequenceSegment.CreateSequence(segments);
+        return this;
+    }
+
+    internal OutputCacheEntry CopyHeadersFrom(IHeaderDictionary headers)
     {
         // only expected in create path; don't reset/recycle existing
         if (headers is not null)
@@ -130,6 +150,7 @@ internal sealed class OutputCacheEntry : IDisposable
                 }
             }
         }
+        return this;
     }
 
     public void CopyHeadersTo(IHeaderDictionary headers)
@@ -144,22 +165,6 @@ internal sealed class OutputCacheEntry : IDisposable
         }
     }
 
-    public async ValueTask CopyToAsync(PipeWriter destination, CancellationToken cancellationToken)
-    {
-        var body = Body;
-        if (!body.IsEmpty)
-        {
-            if (body.IsSingleSegment)
-            {
-                await destination.WriteAsync(body.First, cancellationToken);
-            }
-            else
-            {
-                foreach (var segment in body)
-                {
-                    await destination.WriteAsync(segment, cancellationToken);
-                }
-            }
-        }
-    }
+    public ValueTask CopyToAsync(PipeWriter destination, CancellationToken cancellationToken)
+        => RecyclingReadOnlySequenceSegment.CopyToAsync(Body, destination, cancellationToken);
 }

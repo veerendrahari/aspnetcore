@@ -127,12 +127,31 @@ internal static class OutputCacheEntryFormatter
         //     data byte length: 7-bit encoded int
         //     data byte[]
 
-        writer.Write7BitEncodedInt(checked((int)entry.Body.Length));
-
-        foreach (var segment in entry.Body)
+        var body = entry.Body;
+        if (body.IsEmpty)
         {
-            writer.Write7BitEncodedInt(segment.Length);
-            writer.BaseStream.Write(segment.Span); // note BaseStream ensures flush etc in anticipation
+            writer.Write7BitEncodedInt(0); // segment count
+        }
+        else if (body.IsSingleSegment)
+        {
+            var span = body.FirstSpan;
+            writer.Write7BitEncodedInt(1); // segment count
+            writer.Write7BitEncodedInt(span.Length);
+            writer.BaseStream.Write(span); // note BaseStream ensures flush etc in anticipation
+        }
+        else
+        {
+            int segmentCount = 0;
+            foreach (var segment in body)
+            {
+                segmentCount++;
+            }
+            writer.Write7BitEncodedInt(segmentCount);
+            foreach (var segment in body)
+            {
+                writer.Write7BitEncodedInt(segment.Length);
+                writer.BaseStream.Write(segment.Span); // note BaseStream ensures flush etc in anticipation
+            }
         }
 
         // Tags:
@@ -199,7 +218,7 @@ internal static class OutputCacheEntryFormatter
         }
     }
 
-    private static OutputCacheEntry? Deserialize(ReadOnlyMemory<byte> content)
+    internal static OutputCacheEntry? Deserialize(ReadOnlyMemory<byte> content)
     {
         var reader = new FormatterBinaryReader(content);
 
@@ -270,7 +289,7 @@ internal static class OutputCacheEntryFormatter
                 }
                 headerArr[i] = (key, value);
             }
-            result.Headers = new ReadOnlyMemory<(string Name, StringValues Values)>(headerArr, 0, headersCount);
+            result.SetHeaders(new ReadOnlyMemory<(string Name, StringValues Values)>(headerArr, 0, headersCount));
         }
 
         // Body:
@@ -288,7 +307,7 @@ internal static class OutputCacheEntryFormatter
                 // nothing to do
                 break;
             case 1:
-                result.Body = new ReadOnlySequence<byte>(ReadSegment(ref reader));
+                result.SetBody(new ReadOnlySequence<byte>(ReadSegment(ref reader)));
                 break;
             case < 0:
                 throw new InvalidOperationException();
@@ -298,7 +317,7 @@ internal static class OutputCacheEntryFormatter
                 {
                     last = RecyclingReadOnlySequenceSegment.Create(ReadSegment(ref reader), last);
                 }
-                result.Body = new ReadOnlySequence<byte>(first, 0, last, last.Length);
+                result.SetBody(new ReadOnlySequence<byte>(first, 0, last, last.Length));
                 break;
         }
 
@@ -324,7 +343,7 @@ internal static class OutputCacheEntryFormatter
                 tagsArray[i] = reader.ReadString();
             }
 
-            result.Tags = new ReadOnlyMemory<string>(tagsArray, 0, tagsCount);
+            result.SetTags(new ReadOnlyMemory<string>(tagsArray, 0, tagsCount));
         }
         return result;
     }
