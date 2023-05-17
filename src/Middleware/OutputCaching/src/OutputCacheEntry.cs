@@ -3,7 +3,6 @@
 
 using System.Buffers;
 using System.IO.Pipelines;
-using System.Net.Security;
 using System.Runtime.InteropServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Primitives;
