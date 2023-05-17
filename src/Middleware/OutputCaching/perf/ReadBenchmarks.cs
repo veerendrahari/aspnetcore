@@ -1,14 +1,14 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System;
 using System.Collections.Concurrent;
-using System.Linq;
 using BenchmarkDotNet.Attributes;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Net.Http.Headers;
 
 namespace Microsoft.AspNetCore.OutputCaching.Benchmark;
+
+[MemoryDiagnoser]
 public class ReadBenchmarks
 {
     private string key = null!;
@@ -47,7 +47,7 @@ public class ReadBenchmarks
     [Benchmark]
     public async Task Read()
     {
-        var result = await OutputCacheEntryFormatter.GetAsync(key, store, CancellationToken.None);
+        using var result = await OutputCacheEntryFormatter.GetAsync(key, store, CancellationToken.None);
         if (result is null)
         {
             Throw();
