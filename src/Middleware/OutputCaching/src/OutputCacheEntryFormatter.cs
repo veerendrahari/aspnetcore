@@ -41,11 +41,10 @@ internal static class OutputCacheEntryFormatter
         ArgumentNullException.ThrowIfNull(value.Body);
         ArgumentNullException.ThrowIfNull(value.Headers);
 
-        using var bufferStream = new MemoryStream();
-
-        Serialize(bufferStream, value);
-
-        await store.SetAsync(key, bufferStream.ToArray(), value.Tags.ToArray(), duration, cancellationToken);
+        var buffer = new RecyclableArrayBufferWriter<byte>();
+        Serialize(buffer, value);
+        await store.SetAsync(key, buffer.ToArray(), value.Tags.ToArray(), duration, cancellationToken);
+        buffer.Dispose(); // this is intentionally not using "using"; only recycle on success, to avoid async code accessing shared buffers (esp. in cancellation)
     }
 
     // Format:
@@ -76,9 +75,9 @@ internal static class OutputCacheEntryFormatter
     //     data byte length: 7-bit encoded int
     //     UTF-8 encoded byte[]
 
-    private static void Serialize(Stream output, OutputCacheEntry entry)
+    private static void Serialize(IBufferWriter<byte> output, OutputCacheEntry entry)
     {
-        using var writer = new BinaryWriter(output);
+        var writer = new FormatterBinaryWriter(output);
 
         // Serialization revision:
         //   7-bit encoded int
@@ -106,7 +105,7 @@ internal static class OutputCacheEntryFormatter
 
         foreach (var header in entry.Headers.Span)
         {
-            WriteCommonHeader(writer, header.Name);
+            WriteCommonHeader(ref writer, header.Name);
 
             //     Values count: 7-bit encoded int
             var count = header.Value.Count;
@@ -117,7 +116,7 @@ internal static class OutputCacheEntryFormatter
             //       UTF-8 encoded byte[]
             for (int i = 0; i < count; i++)
             {
-                WriteCommonHeader(writer, header.Value[i]);
+                WriteCommonHeader(ref writer, header.Value[i]);
             }
         }
 
@@ -130,19 +129,19 @@ internal static class OutputCacheEntryFormatter
         var body = entry.Body;
         if (body.IsEmpty)
         {
-            writer.Write7BitEncodedInt(0); // segment count
+            writer.Write((byte)0); // segment count
         }
         else if (body.IsSingleSegment)
         {
             var span = body.FirstSpan;
-            writer.Write7BitEncodedInt(1); // segment count
+            writer.Write((byte)1); // segment count
             writer.Write7BitEncodedInt(span.Length);
-            writer.BaseStream.Write(span); // note BaseStream ensures flush etc in anticipation
+            writer.WriteRaw(span); // note BaseStream ensures flush etc in anticipation
         }
         else
         {
             int segmentCount = 0;
-            foreach (var segment in body)
+            foreach (var _ in body)
             {
                 segmentCount++;
             }
@@ -150,7 +149,7 @@ internal static class OutputCacheEntryFormatter
             foreach (var segment in body)
             {
                 writer.Write7BitEncodedInt(segment.Length);
-                writer.BaseStream.Write(segment.Span); // note BaseStream ensures flush etc in anticipation
+                writer.WriteRaw(segment.Span); // note BaseStream ensures flush etc in anticipation
             }
         }
 
@@ -166,14 +165,14 @@ internal static class OutputCacheEntryFormatter
         {
             writer.Write(tag ?? "");
         }
+        writer.Flush();
     }
 
-    [SkipLocalsInit]
-    static void WriteCommonHeader(BinaryWriter writer, string? value)
+    static void WriteCommonHeader(ref FormatterBinaryWriter writer, string? value)
     {
         if (string.IsNullOrEmpty(value))
         {
-            writer.Write7BitEncodedInt(0);
+            writer.Write((byte)0);
         }
         else
         {
@@ -192,7 +191,7 @@ internal static class OutputCacheEntryFormatter
                 Span<byte> buffer = bytes <= MAX_STACK_BYTES ? stackalloc byte[bytes] : new(leased = ArrayPool<byte>.Shared.Rent(bytes), 0, bytes);
                 int actual = Encoding.UTF8.GetBytes(value, buffer);
                 Debug.Assert(actual == bytes);
-                writer.BaseStream.Write(buffer); // .BaseStream includes a flush in anticipation
+                writer.WriteRaw(buffer); // .BaseStream includes a flush in anticipation
                 if (leased is not null)
                 {
                     ArrayPool<byte>.Shared.Return(leased);

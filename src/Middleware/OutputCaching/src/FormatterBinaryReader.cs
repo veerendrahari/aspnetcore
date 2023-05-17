@@ -8,7 +8,6 @@ using System.Text;
 
 namespace Microsoft.AspNetCore.OutputCaching;
 
-[SkipLocalsInit]
 internal ref struct FormatterBinaryReader
 {
     // this is effectively a cut-down re-implementation of BinaryReader
@@ -16,7 +15,7 @@ internal ref struct FormatterBinaryReader
     // and is byte-compatible; however, instead of working against a Stream, we work against a ReadOnlyMemory<byte>
     //
     // additionally, we add support for reading a string with length specified by the caller (rather than handled automatically),
-    // and in-place (zero-coyp) BLOB reads
+    // and in-place (zero-copy) BLOB reads
 
     readonly ReadOnlyMemory<byte> original; // used to allow us to zero-copy chunks out of the payload
     readonly ref byte root;
