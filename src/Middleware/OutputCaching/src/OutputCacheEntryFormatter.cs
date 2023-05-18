@@ -436,11 +436,30 @@ internal static class OutputCacheEntryFormatter
         HeaderNames.Vary,
         HeaderNames.Via,
         HeaderNames.Warning,
+
+        // for Content-Type
         "text/html",
         "text/html; charset=utf-8",
+        "text/html;charset=utf-8",
         "text/xml",
         "text/json",
         "application/x-binary",
+        "image/svg+xml",
+        "image/x-png",
+        // for Accept-Encoding
+        "gzip",
+        "compress",
+        "deflate",
+        "br",
+        "identity",
+        "*",
+        // for X-Frame-Options
+        "SAMEORIGIN",
+        "DENY",
+        // for X-Content-Type
+        "nosniff"
+
+        // if you add new options here, you should rev the api version
     };
 
     static readonly FrozenDictionary<string, int> CommonHeadersLookup = BuildCommonHeadersLookup();

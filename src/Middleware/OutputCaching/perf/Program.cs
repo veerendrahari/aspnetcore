@@ -3,5 +3,12 @@
 
 using System.Reflection;
 using BenchmarkDotNet.Running;
+using Microsoft.AspNetCore.OutputCaching.Benchmark;
 
+#if DEBUG
+var obj = new EndToEndBenchmarks();
+await obj.InitAsync(); // validation etc
+obj.Cleanup();
+#else
 BenchmarkRunner.Run(Assembly.GetExecutingAssembly(), args: args);
+#endif
