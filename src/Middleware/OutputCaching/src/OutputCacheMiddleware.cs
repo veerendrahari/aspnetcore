@@ -377,7 +377,6 @@ internal sealed class OutputCacheMiddleware
 
             // Store the response on the state
             var cacheEntry = new OutputCacheEntry(context.ResponseTime!.Value, response.StatusCode)
-                .CopyTagsFrom(context.Tags)
                 .CopyHeadersFrom(headers);
             context.CachedResponse = cacheEntry;
 
@@ -413,7 +412,7 @@ internal sealed class OutputCacheMiddleware
                 else
                 {
                     _logger.ResponseCached();
-                    await OutputCacheEntryFormatter.StoreAsync(context.CacheKey, context.CachedResponse, context.CachedResponseValidFor, _store, context.HttpContext.RequestAborted);
+                    await OutputCacheEntryFormatter.StoreAsync(context.CacheKey, context.CachedResponse, context.Tags, context.CachedResponseValidFor, _store, context.HttpContext.RequestAborted);
                 }
             }
             else

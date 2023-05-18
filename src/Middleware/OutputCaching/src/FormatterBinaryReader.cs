@@ -22,6 +22,8 @@ internal ref struct FormatterBinaryReader
     readonly int length;
     int offset;
 
+    public bool IsEOF => offset >= length;
+
     public FormatterBinaryReader(ReadOnlyMemory<byte> content)
     {
         original = content;
@@ -123,6 +125,8 @@ internal ref struct FormatterBinaryReader
     }
 
     public string ReadString() => ReadString(Read7BitEncodedInt());
+
+    public void SkipString() => Skip(Read7BitEncodedInt());
     public string ReadString(int bytes)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(bytes);
@@ -138,6 +142,16 @@ internal ref struct FormatterBinaryReader
         var s = Encoding.UTF8.GetString(MemoryMarshal.CreateReadOnlySpan(ref Unsafe.Add(ref root, offset), bytes));
         offset += bytes;
         return s;
+    }
+
+    public void Skip(int bytes)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(bytes);
+        if (offset + bytes > length)
+        {
+            ThrowEndOfStream();
+        }
+        offset += bytes;
     }
 
     public ReadOnlySpan<byte> ReadBytesSpan(int count)

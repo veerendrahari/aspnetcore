@@ -4,8 +4,7 @@
 using System.Buffers;
 using System.Collections.Frozen;
 using System.Diagnostics;
-using System.Formats.Asn1;
-using System.Runtime.CompilerServices;
+using System.Linq;
 using System.Text;
 using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
@@ -36,7 +35,7 @@ internal static class OutputCacheEntryFormatter
         return Deserialize(content);
     }
 
-    public static async ValueTask StoreAsync(string key, OutputCacheEntry value, TimeSpan duration, IOutputCacheStore store, CancellationToken cancellationToken)
+    public static async ValueTask StoreAsync(string key, OutputCacheEntry value, HashSet<string>? tags, TimeSpan duration, IOutputCacheStore store, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(value);
         ArgumentNullException.ThrowIfNull(value.Body);
@@ -44,7 +43,9 @@ internal static class OutputCacheEntryFormatter
 
         var buffer = new RecyclableArrayBufferWriter<byte>();
         Serialize(buffer, value);
-        await store.SetAsync(key, buffer.ToArray(), value.Tags.ToArray(), duration, cancellationToken);
+
+        string[] tagsArr = tags is { Count: > 0 } ? tags.ToArray() : Array.Empty<string>();
+        await store.SetAsync(key, buffer.ToArray(), tagsArr, duration, cancellationToken);
         buffer.Dispose(); // this is intentionally not using "using"; only recycle on success, to avoid async code accessing shared buffers (esp. in cancellation)
     }
 
@@ -122,50 +123,29 @@ internal static class OutputCacheEntryFormatter
         }
 
         // Body:
-        //   Segments count: 7-bit encoded int
-        //   For each segment:
-        //     data byte length: 7-bit encoded int
+        //   Bytes count: 7-bit encoded int
         //     data byte[]
 
         var body = entry.Body;
         if (body.IsEmpty)
         {
-            writer.Write((byte)0); // segment count
+            writer.Write((byte)0);
         }
         else if (body.IsSingleSegment)
         {
             var span = body.FirstSpan;
-            writer.Write((byte)1); // segment count
             writer.Write7BitEncodedInt(span.Length);
-            writer.WriteRaw(span); // note BaseStream ensures flush etc in anticipation
+            writer.WriteRaw(span);
         }
         else
         {
-            int segmentCount = 0;
-            foreach (var _ in body)
-            {
-                segmentCount++;
-            }
-            writer.Write7BitEncodedInt(segmentCount);
+            writer.Write7BitEncodedInt(checked((int)body.Length));
             foreach (var segment in body)
             {
-                writer.Write7BitEncodedInt(segment.Length);
-                writer.WriteRaw(segment.Span); // note BaseStream ensures flush etc in anticipation
+                writer.WriteRaw(segment.Span);
             }
         }
 
-        // Tags:
-        //   Tags count: 7-bit encoded int
-        //   For each tag:
-        //     data byte length: 7-bit encoded int
-        //     UTF-8 encoded byte[]
-
-        writer.Write7BitEncodedInt(entry.Tags.Length);
-
-        foreach (var tag in entry.Tags.Span)
-        {
-            writer.Write(tag ?? "");
-        }
         writer.Flush();
     }
 
@@ -192,7 +172,7 @@ internal static class OutputCacheEntryFormatter
                 Span<byte> buffer = bytes <= MAX_STACK_BYTES ? stackalloc byte[bytes] : new(leased = ArrayPool<byte>.Shared.Rent(bytes), 0, bytes);
                 int actual = Encoding.UTF8.GetBytes(value, buffer);
                 Debug.Assert(actual == bytes);
-                writer.WriteRaw(buffer); // .BaseStream includes a flush in anticipation
+                writer.WriteRaw(buffer);
                 if (leased is not null)
                 {
                     ArrayPool<byte>.Shared.Return(leased);
@@ -201,9 +181,9 @@ internal static class OutputCacheEntryFormatter
         }
     }
 
-    private static bool CanParseRevision(int revision, out bool useCommonHeaders)
+    private static bool CanParseRevision(SerializationRevision revision, out bool useCommonHeaders)
     {
-        switch ((SerializationRevision)revision)
+        switch (revision)
         {
             case SerializationRevision.V1_Original: // we don't actively expect this much, since only in-proc back-end was shipped
                 useCommonHeaders = false;
@@ -225,7 +205,8 @@ internal static class OutputCacheEntryFormatter
         // Serialization revision:
         //   7-bit encoded int
 
-        if (!CanParseRevision(reader.Read7BitEncodedInt(), out var useCommonHeaders))
+        var revision = (SerializationRevision)reader.Read7BitEncodedInt();
+        if (!CanParseRevision(revision, out var useCommonHeaders))
         {
             return null;
         }
@@ -292,59 +273,78 @@ internal static class OutputCacheEntryFormatter
             result.SetHeaders(new ReadOnlyMemory<(string Name, StringValues Values)>(headerArr, 0, headersCount));
         }
 
-        // Body:
-        //   Segments count: 7-bit encoded int
-
-        var segmentsCount = reader.Read7BitEncodedInt();
-
-        //   For each segment:
-        //     data byte length: 7-bit encoded int
-        //     data byte[]
-
-        switch (segmentsCount)
+        if (revision == SerializationRevision.V1_Original)
         {
-            case 0:
-                // nothing to do
-                break;
-            case 1:
-                result.SetBody(new ReadOnlySequence<byte>(ReadSegment(ref reader)), recycleBuffers: false); // we're reusing the live payload buffers
-                break;
-            case < 0:
-                throw new InvalidOperationException();
-            default:
-                RecyclingReadOnlySequenceSegment first = RecyclingReadOnlySequenceSegment.Create(ReadSegment(ref reader), null), last = first;
-                for (int i = 1; i < segmentsCount; i++)
-                {
-                    last = RecyclingReadOnlySequenceSegment.Create(ReadSegment(ref reader), last);
-                }
-                result.SetBody(new ReadOnlySequence<byte>(first, 0, last, last.Length), recycleBuffers: false);  // we're reusing the live payload buffers
-                break;
-        }
+            // Body:
+            //   Segments count: 7-bit encoded int
 
-        static ReadOnlyMemory<byte> ReadSegment(ref FormatterBinaryReader reader)
-        {
-            var segmentLength = reader.Read7BitEncodedInt();
-            return reader.ReadBytesMemory(segmentLength);
-        }
+            var segmentsCount = reader.Read7BitEncodedInt();
 
-        // Tags:
-        //   Tags count: 7-bit encoded int
-
-        var tagsCount = reader.Read7BitEncodedInt();
-        if (tagsCount > 0)
-        {
-            //   For each tag:
+            //   For each segment:
             //     data byte length: 7-bit encoded int
-            //     UTF-8 encoded byte[]
-            var tagsArray = ArrayPool<string>.Shared.Rent(tagsCount);
+            //     data byte[]
 
-            for (var i = 0; i < tagsCount; i++)
+            switch (segmentsCount)
             {
-                tagsArray[i] = reader.ReadString();
+                case 0:
+                    // nothing to do
+                    break;
+                case 1:
+                    result.SetBody(new ReadOnlySequence<byte>(ReadSegment(ref reader)), recycleBuffers: false); // we're reusing the live payload buffers
+                    break;
+                case < 0:
+                    throw new InvalidOperationException();
+                default:
+                    RecyclingReadOnlySequenceSegment first = RecyclingReadOnlySequenceSegment.Create(ReadSegment(ref reader), null), last = first;
+                    for (int i = 1; i < segmentsCount; i++)
+                    {
+                        last = RecyclingReadOnlySequenceSegment.Create(ReadSegment(ref reader), last);
+                    }
+                    result.SetBody(new ReadOnlySequence<byte>(first, 0, last, last.Length), recycleBuffers: false);  // we're reusing the live payload buffers
+                    break;
             }
 
-            result.SetTags(new ReadOnlyMemory<string>(tagsArray, 0, tagsCount));
+            static ReadOnlyMemory<byte> ReadSegment(ref FormatterBinaryReader reader)
+            {
+                var segmentLength = reader.Read7BitEncodedInt();
+                return reader.ReadBytesMemory(segmentLength);
+            }
+
+            // we can just stop reading, but: here's how we'd skip tags if we had to
+            // (actually validate them in debug to prove reader)
+#if DEBUG
+            if (revision == SerializationRevision.V1_Original)
+            {
+                // Tags:
+                //   Tags count: 7-bit encoded int
+
+                var tagsCount = reader.Read7BitEncodedInt();
+                if (tagsCount > 0)
+                {
+                    //   For each tag:
+                    //     data byte length: 7-bit encoded int
+                    //     UTF-8 encoded byte[]
+                    for (var i = 0; i < tagsCount; i++)
+                    {
+                        reader.SkipString();
+                    }
+                }
+            }
+#endif
         }
+        else
+        {
+            // Body:
+            //   Bytes count: 7-bit encoded int
+
+            var payloadLength = checked((int)reader.Read7BitEncodedInt64());
+            if (payloadLength != 0)
+            {   // since the reader only supports linear memory currently, read the entire chunk as a single piece
+                result.SetBody(new(reader.ReadBytesMemory(payloadLength)), recycleBuffers: false); // we're reusing the live payload buffers
+            }
+        }
+
+        Debug.Assert(reader.IsEOF, "should have read entire payload");
         return result;
     }
 

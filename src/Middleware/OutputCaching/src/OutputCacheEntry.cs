@@ -72,24 +72,12 @@ internal sealed class OutputCacheEntry : IDisposable
         _recycleBuffers = recycleBuffers;
     }
 
-    /// <summary>
-    /// Gets the tags of the cache entry.
-    /// </summary>
-    public ReadOnlyMemory<string> Tags { get; private set; }
-
-    // this is intentionally not an internal setter to make it clear that this should not be
-    // used from most scenarios; this should consider buffer reuse - you *probably* want CopyFrom
-    internal void SetTags(ReadOnlyMemory<string> value) => Tags = value;
-
     public void Dispose()
     {
-        var tags = Tags;
         var headers = Headers;
         var body = Body;
-        Tags = default;
         Headers = default;
         Body = default;
-        Recycle(tags);
         Recycle(headers);
         RecyclingReadOnlySequenceSegment.RecycleChain(body, _recycleBuffers);
         // ^^ note that this only recycles the chain, not the actual buffers
@@ -100,22 +88,6 @@ internal sealed class OutputCacheEntry : IDisposable
         {
             ArrayPool<T>.Shared.Return(segment.Array);
         }
-    }
-
-    internal OutputCacheEntry CopyTagsFrom(ICollection<string> tags)
-    {
-        // only expected in create path; don't reset/recycle existing
-        if (tags is not null)
-        {
-            var count = tags.Count;
-            if (count != 0)
-            {
-                var arr = ArrayPool<string>.Shared.Rent(count);
-                tags.CopyTo(arr, 0);
-                Tags = new(arr, 0, count);
-            }
-        }
-        return this;
     }
 
     internal OutputCacheEntry CreateBodyFrom(IList<byte[]> segments) // mainly used from tests

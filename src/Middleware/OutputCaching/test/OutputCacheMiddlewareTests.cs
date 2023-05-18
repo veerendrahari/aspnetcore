@@ -66,6 +66,7 @@ public class OutputCacheMiddlewareTests
             await OutputCacheEntryFormatter.StoreAsync(
                 "BaseKey",
                 entry,
+                null,
                 TimeSpan.Zero,
                 cache,
                 default);
@@ -93,6 +94,7 @@ public class OutputCacheMiddlewareTests
         {
             await OutputCacheEntryFormatter.StoreAsync(context.CacheKey,
                 entry,
+                null,
                 TimeSpan.Zero,
                 cache,
                 default);
@@ -119,6 +121,7 @@ public class OutputCacheMiddlewareTests
         {
             await OutputCacheEntryFormatter.StoreAsync("BaseKey",
                 entry,
+                null,
                 TimeSpan.Zero,
                 cache,
                 default);

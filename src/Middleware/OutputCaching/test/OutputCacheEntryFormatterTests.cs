@@ -20,7 +20,7 @@ public class OutputCacheEntryFormatterTests
         var key = "abc";
         using var entry = new OutputCacheEntry(KnownTime, 200);
 
-        await OutputCacheEntryFormatter.StoreAsync(key, entry, TimeSpan.Zero, store, default);
+        await OutputCacheEntryFormatter.StoreAsync(key, entry, null, TimeSpan.Zero, store, default);
 
         var result = await OutputCacheEntryFormatter.GetAsync(key, store, default);
 
@@ -37,34 +37,13 @@ public class OutputCacheEntryFormatterTests
         var key = "abc";
         using (var entry = new OutputCacheEntry(KnownTime, StatusCodes.Status201Created)
             .CopyHeadersFrom(new HeaderDictionary { [HeaderNames.Accept] = new[] { "text/plain", "text/html" }, [HeaderNames.AcceptCharset] = "utf8" })
-            .CopyTagsFrom(new[] { "tag", "タグ" })
             .CreateBodyFrom(new[] { bodySegment1, bodySegment1 }))
         {
-            await OutputCacheEntryFormatter.StoreAsync(key, entry, TimeSpan.Zero, store, default);
+            await OutputCacheEntryFormatter.StoreAsync(key, entry, new HashSet<string>() { "tag", "タグ" }, TimeSpan.Zero, store, default);
             var result = await OutputCacheEntryFormatter.GetAsync(key, store, default);
 
             AssertEntriesAreSame(entry, result);
         }
-    }
-
-    [Fact]
-    public async Task StoreAndGet_StoresNullTags()
-    {
-        var store = new TestOutputCache();
-        var key = "abc";
-        using (var entry = new OutputCacheEntry(KnownTime, StatusCodes.Status201Created)
-            .CopyTagsFrom(new[] { null, null, "", "tag" }))
-        {
-
-            await OutputCacheEntryFormatter.StoreAsync(key, entry, TimeSpan.Zero, store, default);
-        }
-        var result = await OutputCacheEntryFormatter.GetAsync(key, store, default);
-
-        Assert.Equal(4, result.Tags.Length);
-        Assert.Equal("", result.Tags.Span[0]);
-        Assert.Equal("", result.Tags.Span[1]);
-        Assert.Equal("", result.Tags.Span[2]);
-        Assert.Equal("tag", result.Tags.Span[3]);
     }
 
     [Fact]
@@ -77,7 +56,7 @@ public class OutputCacheEntryFormatterTests
         {
             entry.CopyHeadersFrom(new HeaderDictionary { [""] = "", [HeaderNames.Accept] = new[] { null, null, "", "text/html" }, [HeaderNames.AcceptCharset] = new string[] { null } });
 
-            await OutputCacheEntryFormatter.StoreAsync(key, entry, TimeSpan.Zero, store, default);
+            await OutputCacheEntryFormatter.StoreAsync(key, entry, null, TimeSpan.Zero, store, default);
         }
         var payload = await store.GetAsync(key, CancellationToken.None);
         Assert.NotNull(payload);
@@ -150,7 +129,7 @@ public class OutputCacheEntryFormatterTests
     // 00                                              segment count 0
     // 00                                              tag count 0
 
-    const string KnownV2Payload = "02-B0-E8-8E-B2-95-D9-D5-ED-08-00-C9-01-03-00-01-00-01-04-00-00-00-89-01-03-01-00-00-00";
+    const string KnownV2Payload = "02-B0-E8-8E-B2-95-D9-D5-ED-08-00-C9-01-03-00-01-00-01-04-00-00-00-89-01-03-01-00-00";
     // 02                                              version 2
     // B0-E8-8E-B2-95-D9-D5-ED-08                      ticks 1684322693875
     // 00                                              offset 0
@@ -167,13 +146,11 @@ public class OutputCacheEntryFormatterTests
     // 01                                              [2] header value count 1
     // 00                                              [2.0] header value ""
     // 00                                              segment count 0
-    // 00                                              tag count 0
 
     private static void AssertEntriesAreSame(OutputCacheEntry expected, OutputCacheEntry actual)
     {
         Assert.NotNull(expected);
         Assert.NotNull(actual);
-        Assert.True(expected.Tags.Span.SequenceEqual(actual.Tags.Span), "Tags");
         Assert.Equal(expected.Created, actual.Created);
         Assert.Equal(expected.StatusCode, actual.StatusCode);
         Assert.True(expected.Headers.Span.SequenceEqual(actual.Headers.Span), "Headers");
