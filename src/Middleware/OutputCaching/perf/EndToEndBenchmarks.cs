@@ -62,22 +62,13 @@ public class EndToEndBenchmarks
         _headers.RequestId = Key;
 
         // store, fetch, validate (for each impl)
-        await OCS_StreamSync();
+        await StreamSync();
         await ReadAsync(true);
 
-        await OCS_StreamAsync();
+        await StreamAsync();
         await ReadAsync(true);
 
-        await OCS_WriterAsync();
-        await ReadAsync(true);
-
-        await OCPW_StreamSync();
-        await ReadAsync(true);
-
-        await OCPW_StreamAsync();
-        await ReadAsync(true);
-
-        await OCPW_WriterAsync();
+        await WriterAsync();
         await ReadAsync(true);
     }
 
@@ -121,8 +112,8 @@ public class EndToEndBenchmarks
         await destination.FlushAsync(cancellationToken);
     }
 
-    [Benchmark(Description = "StreamSync"), BenchmarkCategory("Write", "Stream")]
-    public async Task OCS_StreamSync()
+    [Benchmark(Description = "StreamSync"), BenchmarkCategory("Write")]
+    public async Task StreamSync()
     {
         ReadOnlySequence<byte> body;
         using (var oc = new OutputCacheStream(Stream.Null, _options.MaximumBodySize, StreamUtilities.BodySegmentSize, _noop))
@@ -137,8 +128,8 @@ public class EndToEndBenchmarks
         entry.Dispose();
     }
 
-    [Benchmark(Description = "StreamAsync"), BenchmarkCategory("Write", "Stream")]
-    public async Task OCS_StreamAsync()
+    [Benchmark(Description = "StreamAsync"), BenchmarkCategory("Write")]
+    public async Task StreamAsync()
     {
         ReadOnlySequence<byte> body;
         using (var oc = new OutputCacheStream(Stream.Null, _options.MaximumBodySize, StreamUtilities.BodySegmentSize, _noop))
@@ -153,65 +144,14 @@ public class EndToEndBenchmarks
         entry.Dispose();
     }
 
-    [Benchmark(Description = "BodyWriter"), BenchmarkCategory("Write", "Stream")]
-    public async Task OCS_WriterAsync()
+    [Benchmark(Description = "BodyWriter"), BenchmarkCategory("Write")]
+    public async Task WriterAsync()
     {
         ReadOnlySequence<byte> body;
         using (var oc = new OutputCacheStream(Stream.Null, _options.MaximumBodySize, StreamUtilities.BodySegmentSize, _noop))
         {
             var pipe = PipeWriter.Create(oc, new StreamPipeWriterOptions(leaveOpen: true));
             await WriteInRandomChunks(Payload, pipe, CancellationToken.None);
-            body = oc.GetCachedResponseBody();
-        }
-        var entry = new OutputCacheEntry(DateTimeOffset.UtcNow, StatusCodes.Status200OK)
-            .CopyHeadersFrom(_headers);
-        entry.SetBody(body, recycleBuffers: true);
-        await OutputCacheEntryFormatter.StoreAsync(Key, entry, _tags, _options.DefaultExpirationTimeSpan, _store, CancellationToken.None);
-        entry.Dispose();
-    }
-
-    [Benchmark(Description = "StreamSync"), BenchmarkCategory("Write", "Pipe")]
-    public async Task OCPW_StreamSync()
-    {
-        ReadOnlySequence<byte> body;
-        using (var nw = new NullPipeWriter(4096))
-        using (var oc = new OutputCachePipeWriter(nw, _options.MaximumBodySize, StreamUtilities.BodySegmentSize, _noop))
-        {
-            WriteInRandomChunks(Payload.Span, oc.AsStream());
-            body = oc.GetCachedResponseBody();
-        }
-        var entry = new OutputCacheEntry(DateTimeOffset.UtcNow, StatusCodes.Status200OK)
-            .CopyHeadersFrom(_headers);
-        entry.SetBody(body, recycleBuffers: true);
-        await OutputCacheEntryFormatter.StoreAsync(Key, entry, _tags, _options.DefaultExpirationTimeSpan, _store, CancellationToken.None);
-        entry.Dispose();
-    }
-
-    [Benchmark(Description = "StreamAsync"), BenchmarkCategory("Write", "Pipe")]
-    public async Task OCPW_StreamAsync()
-    {
-        ReadOnlySequence<byte> body;
-        using (var nw = new NullPipeWriter(4096))
-        using (var oc = new OutputCachePipeWriter(nw, _options.MaximumBodySize, StreamUtilities.BodySegmentSize, _noop))
-        {
-            await WriteInRandomChunksAsync(Payload, oc.AsStream(), CancellationToken.None);
-            body = oc.GetCachedResponseBody();
-        }
-        var entry = new OutputCacheEntry(DateTimeOffset.UtcNow, StatusCodes.Status200OK)
-            .CopyHeadersFrom(_headers);
-        entry.SetBody(body, recycleBuffers: true);
-        await OutputCacheEntryFormatter.StoreAsync(Key, entry, _tags, _options.DefaultExpirationTimeSpan, _store, CancellationToken.None);
-        entry.Dispose();
-    }
-
-    [Benchmark(Description = "BodyWriter"), BenchmarkCategory("Write", "Pipe")]
-    public async Task OCPW_WriterAsync()
-    {
-        ReadOnlySequence<byte> body;
-        using (var nw = new NullPipeWriter(4096))
-        using (var oc = new OutputCachePipeWriter(nw, _options.MaximumBodySize, StreamUtilities.BodySegmentSize, _noop))
-        {
-            await WriteInRandomChunks(Payload, oc, CancellationToken.None);
             body = oc.GetCachedResponseBody();
         }
         var entry = new OutputCacheEntry(DateTimeOffset.UtcNow, StatusCodes.Status200OK)
