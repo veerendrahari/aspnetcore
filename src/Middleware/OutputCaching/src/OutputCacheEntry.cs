@@ -108,12 +108,7 @@ internal sealed class OutputCacheEntry : IDisposable
                 var arr = ArrayPool<(string, StringValues)>.Shared.Rent(count);
                 foreach (var header in headers)
                 {
-                    if (string.Equals(header.Key, HeaderNames.Age, StringComparison.OrdinalIgnoreCase)
-                        || string.Equals(header.Key, HeaderNames.ContentLength))
-                    {
-                        // ignore (note: length is already carried via the payload)
-                    }
-                    else
+                    if (OutputCacheEntryFormatter.ShouldStoreHeader(header.Key))
                     {
                         arr[index++] = (header.Key, header.Value);
                     }

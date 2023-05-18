@@ -211,13 +211,13 @@ public class EndToEndBenchmarks
             ArrayPool<byte>.Shared.Return(oversized);
         }
 
-        if (value.Headers.Length != _headers.Count - 1)
+        if (value.Headers.Length != _headers.Count - 2)
         {
             throw new InvalidOperationException("Incorrect header count");
         }
         foreach (var header in _headers)
         {
-            if (header.Key == HeaderNames.ContentLength)
+            if (header.Key == HeaderNames.ContentLength || header.Key == HeaderNames.RequestId)
             {
                 // not stored
                 continue;

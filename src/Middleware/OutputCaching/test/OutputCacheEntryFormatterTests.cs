@@ -3,7 +3,6 @@
 
 using System.Buffers;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
 
 namespace Microsoft.AspNetCore.OutputCaching.Tests;
@@ -129,7 +128,7 @@ public class OutputCacheEntryFormatterTests
     // 00                                              segment count 0
     // 00                                              tag count 0
 
-    const string KnownV2Payload = "02-B0-E8-8E-B2-95-D9-D5-ED-08-00-C9-01-03-00-01-00-01-04-00-00-00-89-01-03-01-00-00";
+    const string KnownV2Payload = "02-B0-E8-8E-B2-95-D9-D5-ED-08-00-C9-01-03-00-01-00-01-04-00-00-00-9B-01-03-01-00-00";
     // 02                                              version 2
     // B0-E8-8E-B2-95-D9-D5-ED-08                      ticks 1684322693875
     // 00                                              offset 0
@@ -141,7 +140,7 @@ public class OutputCacheEntryFormatterTests
     // 01                                              [1] header name "Accept"
     // 04                                              [1] header value count 4
     // 00-00-00                                        [1.0, 1.1, 1.2] header value ""
-    // 89-01                                           [1.3] header value "text/html"
+    // 9B-01                                           [1.3] header value "text/html"
     // 03                                              [2] header name "Accept-Charset"
     // 01                                              [2] header value count 1
     // 00                                              [2.0] header value ""
