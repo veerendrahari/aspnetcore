@@ -1,7 +1,6 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Linq;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.ObjectPool;
@@ -96,7 +95,6 @@ internal sealed class OutputCacheMiddleware
 
         // Add IOutputCacheFeature
         AddOutputCacheFeature(context);
-
         try
         {
             foreach (var policy in policies)
@@ -110,8 +108,12 @@ internal sealed class OutputCacheMiddleware
                 // Can this request be served from cache?
                 if (context.AllowCacheLookup)
                 {
-                    if (await TryServeFromCacheAsync(context, policies))
+                    bool served = await TryServeFromCacheAsync(context, policies);
+                    context.ReleaseCachedResponse(); // release even if not served due to failing conditions
+
+                    if (served)
                     {
+                        // note: no cached-response exposed here (so no need to recycle)
                         return;
                     }
                 }
@@ -125,28 +127,30 @@ internal sealed class OutputCacheMiddleware
 
                     var executed = false;
 
-                    OutputCacheEntry? cacheEntry = null;
                     if (context.AllowLocking)
                     {
-                        cacheEntry = await _requestDispatcher.ScheduleAsync(context.CacheKey, key => ExecuteResponseAsync());
+                        var cacheEntry = await _requestDispatcher.ScheduleAsync(context.CacheKey, key => ExecuteResponseAsync());
 
                         // The current request was processed, nothing more to do
                         if (executed)
                         {
+                            context.ReleaseCachedResponse();
                             return;
                         }
 
                         // If the result was processed by another request, try to serve it from cache entry (no lookup)
                         if (await TryServeCachedResponseAsync(context, cacheEntry, policies))
                         {
+                            context.ReleaseCachedResponse();
                             return;
                         }
 
                         // If the cache entry couldn't be served, continue to processing the request as usual
                     }
 
-                    cacheEntry = await ExecuteResponseAsync();
-                    cacheEntry?.Dispose();
+                    await ExecuteResponseAsync();
+                    context.ReleaseCachedResponse();
+                    return;
 
                     async Task<OutputCacheEntry?> ExecuteResponseAsync()
                     {
@@ -178,16 +182,12 @@ internal sealed class OutputCacheMiddleware
 
                         // If the policies prevented this response from being cached we can't reuse it for other
                         // pending requests
-
                         if (!context.AllowCacheStorage)
                         {
-                            return null;
+                            context.ReleaseCachedResponse();
                         }
-
                         return context.CachedResponse;
                     }
-
-                    return;
                 }
             }
 
@@ -309,10 +309,8 @@ internal sealed class OutputCacheMiddleware
                 }
                 _logger.CachedResponseServed();
             }
-            cachedResponse.Dispose(); // it is intentional that this is not disposed on exception (recycling buffers accessed from unknown state, etc)
             return true;
         }
-        cachedResponse.Dispose(); // it is intentional that this is not disposed on exception (recycling buffers accessed from unknown state, etc)
         return false;
     }
 
@@ -391,7 +389,8 @@ internal sealed class OutputCacheMiddleware
     /// </summary>
     internal async ValueTask FinalizeCacheBodyAsync(OutputCacheContext context)
     {
-        if (context.AllowCacheStorage && context.OutputCacheStream.BufferingEnabled)
+        if (context.AllowCacheStorage && context.OutputCacheStream.BufferingEnabled
+            && context.CachedResponse is not null)
         {
             // If AllowCacheLookup is false, the cache key was not created
             CreateCacheKey(context);
@@ -489,6 +488,11 @@ internal sealed class OutputCacheMiddleware
     {
         var cachedResponse = context.CachedResponse;
         var ifNoneMatchHeader = context.HttpContext.Request.Headers.IfNoneMatch;
+
+        if (cachedResponse is null)
+        {
+            return false;
+        }
 
         if (!StringValues.IsNullOrEmpty(ifNoneMatchHeader))
         {
