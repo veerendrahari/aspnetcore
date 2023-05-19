@@ -98,7 +98,10 @@ internal sealed class RecyclingReadOnlySequenceSegment : ReadOnlySequenceSegment
             {
                 foreach (var segment in source)
                 {
-                    await destination.WriteAsync(segment, cancellationToken);
+                    if (!segment.IsEmpty)
+                    {
+                        await destination.WriteAsync(segment, cancellationToken);
+                    }
                 }
             }
         }
