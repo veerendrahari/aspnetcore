@@ -7,15 +7,15 @@ using System.IO.Pipelines;
 using System.Runtime.InteropServices;
 
 namespace Microsoft.AspNetCore.OutputCaching;
-internal sealed class RecyclingReadOnlySequenceSegment : ReadOnlySequenceSegment<byte>
+internal sealed class RecyclableReadOnlySequenceSegment : ReadOnlySequenceSegment<byte>
 {
     public int Length => Memory.Length;
-    private RecyclingReadOnlySequenceSegment() { }
+    private RecyclableReadOnlySequenceSegment() { }
 
-    public static RecyclingReadOnlySequenceSegment Create(int minimumLength, RecyclingReadOnlySequenceSegment? previous)
+    public static RecyclableReadOnlySequenceSegment Create(int minimumLength, RecyclableReadOnlySequenceSegment? previous)
         => Create(Rent(minimumLength), previous);
 
-    public static RecyclingReadOnlySequenceSegment Create(ReadOnlyMemory<byte> memory, RecyclingReadOnlySequenceSegment? previous)
+    public static RecyclableReadOnlySequenceSegment Create(ReadOnlyMemory<byte> memory, RecyclableReadOnlySequenceSegment? previous)
     {
         var obj = s_Spares.TryDequeue(out var value) ? value : new();
         obj.Memory = memory;
@@ -28,10 +28,31 @@ internal sealed class RecyclingReadOnlySequenceSegment : ReadOnlySequenceSegment
     }
 
     const int TARGET_MAX = 128;
-    static readonly ConcurrentQueue<RecyclingReadOnlySequenceSegment> s_Spares = new();
+    static readonly ConcurrentQueue<RecyclableReadOnlySequenceSegment> s_Spares = new();
+
+    public static void RecycleChain(RecyclableReadOnlySequenceSegment? obj, bool recycleBuffers = false)
+    {
+        while (obj is not null)
+        {
+            var mem = obj.Memory;
+            obj.Memory = default;
+            obj.RunningIndex = 0;
+            var next = obj.Next as RecyclableReadOnlySequenceSegment;
+            obj.Next = default;
+            if (s_Spares.Count < TARGET_MAX) // not precise, due to not wanting lock
+            { // (note: we still want to break the chain, even if not reusing; no else-break)
+                s_Spares.Enqueue(obj);
+            }
+            if (recycleBuffers)
+            {
+                Recycle(mem);
+            }
+            obj = next;
+        }
+    }
     public static void RecycleChain(in ReadOnlySequence<byte> value, bool recycleBuffers = false)
     {
-        var obj = value.Start.GetObject() as RecyclingReadOnlySequenceSegment;
+        var obj = value.Start.GetObject() as RecyclableReadOnlySequenceSegment;
         if (obj is null)
         {
             // not segment based, but memory may still need recycling
@@ -42,24 +63,7 @@ internal sealed class RecyclingReadOnlySequenceSegment : ReadOnlySequenceSegment
         }
         else
         {
-            do
-            {
-                var mem = obj.Memory;
-                obj.Memory = default;
-                obj.RunningIndex = 0;
-                var next = obj.Next as RecyclingReadOnlySequenceSegment;
-                obj.Next = default;
-                if (s_Spares.Count < TARGET_MAX) // not precise, due to not wanting lock
-                { // (note: we still want to break the chain, even if not reusing; no else-break)
-                    s_Spares.Enqueue(obj);
-                }
-                if (recycleBuffers)
-                {
-                    Recycle(mem);
-                }
-                obj = next;
-            }
-            while (obj is not null);
+            RecycleChain(obj, recycleBuffers);
         }
     }
 
@@ -77,7 +81,7 @@ internal sealed class RecyclingReadOnlySequenceSegment : ReadOnlySequenceSegment
             case 1:
                 return new(segments[0]);
             default:
-                RecyclingReadOnlySequenceSegment first = Create(segments[0], null), last = first;
+                RecyclableReadOnlySequenceSegment first = Create(segments[0], null), last = first;
                 for (int i = 1; i < count; i++)
                 {
                     last = Create(segments[i], last);

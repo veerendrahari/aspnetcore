@@ -79,7 +79,7 @@ internal sealed class OutputCacheEntry : IDisposable
         Headers = default;
         Body = default;
         Recycle(headers);
-        RecyclingReadOnlySequenceSegment.RecycleChain(body, _recycleBuffers);
+        RecyclableReadOnlySequenceSegment.RecycleChain(body, _recycleBuffers);
         // ^^ note that this only recycles the chain, not the actual buffers
     }
     static void Recycle<T>(ReadOnlyMemory<T> value)
@@ -93,7 +93,7 @@ internal sealed class OutputCacheEntry : IDisposable
     internal OutputCacheEntry CreateBodyFrom(IList<byte[]> segments) // mainly used from tests
     {
         // only expected in create path; don't reset/recycle existing
-        Body = RecyclingReadOnlySequenceSegment.CreateSequence(segments);
+        Body = RecyclableReadOnlySequenceSegment.CreateSequence(segments);
         return this;
     }
 
@@ -139,5 +139,5 @@ internal sealed class OutputCacheEntry : IDisposable
     }
 
     public ValueTask CopyToAsync(PipeWriter destination, CancellationToken cancellationToken)
-        => RecyclingReadOnlySequenceSegment.CopyToAsync(Body, destination, cancellationToken);
+        => RecyclableReadOnlySequenceSegment.CopyToAsync(Body, destination, cancellationToken);
 }

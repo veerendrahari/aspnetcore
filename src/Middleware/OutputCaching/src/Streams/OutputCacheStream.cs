@@ -2,7 +2,6 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Buffers;
-using Microsoft.AspNetCore.WriteStream;
 
 namespace Microsoft.AspNetCore.OutputCaching;
 
@@ -11,7 +10,7 @@ internal sealed class OutputCacheStream : Stream
     private readonly Stream _innerStream;
     private readonly long _maxBufferSize;
     private readonly int _segmentSize;
-    private readonly SegmentWriteStream _segmentWriteStream;
+    private readonly RecyclableSequenceBuilder _segmentWriteStream;
     private readonly Action _startResponseCallback;
 
     internal OutputCacheStream(Stream innerStream, long maxBufferSize, int segmentSize, Action startResponseCallback)
@@ -20,7 +19,7 @@ internal sealed class OutputCacheStream : Stream
         _maxBufferSize = maxBufferSize;
         _segmentSize = segmentSize;
         _startResponseCallback = startResponseCallback;
-        _segmentWriteStream = new SegmentWriteStream(_segmentSize);
+        _segmentWriteStream = new(_segmentSize);
     }
 
     internal bool BufferingEnabled { get; private set; } = true;
@@ -49,7 +48,7 @@ internal sealed class OutputCacheStream : Stream
         {
             throw new InvalidOperationException("Buffer stream cannot be retrieved since buffering is disabled.");
         }
-        return _segmentWriteStream.DetachPayload();
+        return _segmentWriteStream.DetachAndReset();
     }
 
     internal void DisableBuffering()

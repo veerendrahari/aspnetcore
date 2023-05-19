@@ -1,21 +1,16 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
-using System.Buffers;
-using System.Diagnostics;
-using System.Runtime.InteropServices;
-using Microsoft.AspNetCore.OutputCaching;
-
 namespace Microsoft.AspNetCore.WriteStream;
 
-internal sealed class SegmentWriteStream : IDisposable
+internal sealed class SegmentWriteStream : Stream
 {
-    RecyclingReadOnlySequenceSegment? _firstSegment, _currentSegment;
-    private int _currentSegmentIndex;
+    private readonly List<byte[]> _segments = new();
+    private readonly MemoryStream _bufferStream = new();
     private readonly int _segmentSize;
+    private long _length;
     private bool _closed;
-
-    public long Length { get; private set; }
+    private bool _disposed;
 
     internal SegmentWriteStream(int segmentSize)
     {
@@ -28,112 +23,164 @@ internal sealed class SegmentWriteStream : IDisposable
     }
 
     // Extracting the buffered segments closes the stream for writing
-    internal ReadOnlySequence<byte> DetachPayload()
+    internal List<byte[]> GetSegments()
     {
-        var payload = DetachWithoutRecycle();
-
-        if (payload.IsEmpty)
+        if (!_closed)
         {
-            // recycle everything including the buffers
-            RecyclingReadOnlySequenceSegment.RecycleChain(payload, recycleBuffers: true);
-            return default;
+            _closed = true;
+            FinalizeSegments();
         }
-
-        if (payload.IsSingleSegment)
-        {
-            // we can return a simple sequence (no segment complexity) - but keep the buffers
-            var result = payload.First;
-            RecyclingReadOnlySequenceSegment.RecycleChain(payload, recycleBuffers: false);
-            return new(result);
-        }
-
-        return payload;
+        return _segments;
     }
 
-    private ReadOnlySequence<byte> DetachWithoutRecycle()
+    public override bool CanRead => false;
+
+    public override bool CanSeek => false;
+
+    public override bool CanWrite => !_closed;
+
+    public override long Length => _length;
+
+    public override long Position
     {
-        _closed = true;
-        if (_firstSegment is null)
+        get
         {
-            return default;
+            return _length;
         }
-        var payload = new ReadOnlySequence<byte>(_firstSegment, 0, _currentSegment!, _currentSegmentIndex);
-
-        // reset our local state for an abundance of caution
-        _firstSegment = _currentSegment = null;
-        _currentSegmentIndex = 0;
-
-        return payload;
+        set
+        {
+            throw new NotSupportedException("The stream does not support seeking.");
+        }
     }
 
-    public void Dispose()
+    private void DisposeMemoryStream()
     {
-        RecyclingReadOnlySequenceSegment.RecycleChain(DetachWithoutRecycle(), recycleBuffers: true);
+        // Clean up the memory stream
+        _bufferStream.SetLength(0);
+        _bufferStream.Capacity = 0;
+        _bufferStream.Dispose();
     }
 
-    private Span<byte> GetBuffer()
+    private void FinalizeSegments()
     {
-        if (_closed)
+        // Append any remaining segments
+        if (_bufferStream.Length > 0)
         {
-            Throw();
-        }
-        static void Throw() => throw new ObjectDisposedException(nameof(SegmentWriteStream), "The stream has been closed for writing.");
-
-        if (_firstSegment is null)
-        {
-            _currentSegment = _firstSegment = RecyclingReadOnlySequenceSegment.Create(_segmentSize, null);
-            _currentSegmentIndex = 0;
+            // Add the last segment
+            _segments.Add(_bufferStream.ToArray());
         }
 
-        Debug.Assert(_currentSegment is not null);
-        var current = _currentSegment.Memory;
-        Debug.Assert(_currentSegmentIndex >= 0 && _currentSegmentIndex <= current.Length);
-
-        if (_currentSegmentIndex == current.Length)
-        {
-            _currentSegment = RecyclingReadOnlySequenceSegment.Create(_segmentSize, _currentSegment);
-            _currentSegmentIndex = 0;
-            current = _currentSegment.Memory;
-        }
-
-        // have capacity in current chunk
-        return MemoryMarshal.AsMemory(current).Span.Slice(_currentSegmentIndex);
+        DisposeMemoryStream();
     }
-    public void Write(ReadOnlySpan<byte> buffer)
+
+    protected override void Dispose(bool disposing)
+    {
+        try
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (disposing)
+            {
+                _segments.Clear();
+                DisposeMemoryStream();
+            }
+
+            _disposed = true;
+            _closed = true;
+        }
+        finally
+        {
+            base.Dispose(disposing);
+        }
+    }
+
+    public override void Flush()
+    {
+        if (!CanWrite)
+        {
+            throw new ObjectDisposedException(nameof(SegmentWriteStream), "The stream has been closed for writing.");
+        }
+    }
+
+    public override int Read(byte[] buffer, int offset, int count)
+    {
+        throw new NotSupportedException("The stream does not support reading.");
+    }
+
+    public override long Seek(long offset, SeekOrigin origin)
+    {
+        throw new NotSupportedException("The stream does not support seeking.");
+    }
+
+    public override void SetLength(long value)
+    {
+        throw new NotSupportedException("The stream does not support seeking.");
+    }
+
+    public override void Write(byte[] buffer, int offset, int count)
+    {
+        ValidateBufferArguments(buffer, offset, count);
+        if (!CanWrite)
+        {
+            throw new ObjectDisposedException(nameof(SegmentWriteStream), "The stream has been closed for writing.");
+        }
+
+        Write(buffer.AsSpan(offset, count));
+    }
+
+    public override void Write(ReadOnlySpan<byte> buffer)
     {
         while (!buffer.IsEmpty)
         {
-            var available = GetBuffer();
-            if (available.Length >= buffer.Length)
+            if ((int)_bufferStream.Length == _segmentSize)
             {
-                buffer.CopyTo(available);
-                Advance(buffer.Length);
-                return; // all done
+                _segments.Add(_bufferStream.ToArray());
+                _bufferStream.SetLength(0);
             }
-            else
-            {
-                var toWrite = Math.Min(buffer.Length, available.Length);
-                if (toWrite <= 0)
-                {
-                    Throw();
-                }
-                buffer.Slice(0, toWrite).CopyTo(available);
-                Advance(toWrite);
-                buffer = buffer.Slice(toWrite);
-            }
+
+            var bytesWritten = Math.Min(buffer.Length, _segmentSize - (int)_bufferStream.Length);
+
+            _bufferStream.Write(buffer[..bytesWritten]);
+            buffer = buffer[bytesWritten..];
+            _length += bytesWritten;
         }
-        static void Throw() => throw new InvalidOperationException("Unable to acquire non-empty write buffer");
     }
 
-    private void Advance(int count)
+    public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
     {
-        _currentSegmentIndex += count;
-        Length += count;
+        Write(buffer, offset, count);
+        return Task.CompletedTask;
     }
 
-    public void WriteByte(byte value)
+    public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken)
     {
-        GetBuffer()[0] = value;
-        Advance(1);
+        Write(buffer.Span);
+        return default;
     }
+
+    public override void WriteByte(byte value)
+    {
+        if (!CanWrite)
+        {
+            throw new ObjectDisposedException(nameof(SegmentWriteStream), "The stream has been closed for writing.");
+        }
+
+        if ((int)_bufferStream.Length == _segmentSize)
+        {
+            _segments.Add(_bufferStream.ToArray());
+            _bufferStream.SetLength(0);
+        }
+
+        _bufferStream.WriteByte(value);
+        _length++;
+    }
+
+    public override IAsyncResult BeginWrite(byte[] buffer, int offset, int count, AsyncCallback? callback, object? state)
+        => TaskToApm.Begin(WriteAsync(buffer, offset, count, CancellationToken.None), callback, state);
+
+    public override void EndWrite(IAsyncResult asyncResult)
+        => TaskToApm.End(asyncResult);
 }

@@ -295,10 +295,10 @@ internal static class OutputCacheEntryFormatter
                 case < 0:
                     throw new InvalidOperationException();
                 default:
-                    RecyclingReadOnlySequenceSegment first = RecyclingReadOnlySequenceSegment.Create(ReadSegment(ref reader), null), last = first;
+                    RecyclableReadOnlySequenceSegment first = RecyclableReadOnlySequenceSegment.Create(ReadSegment(ref reader), null), last = first;
                     for (int i = 1; i < segmentsCount; i++)
                     {
-                        last = RecyclingReadOnlySequenceSegment.Create(ReadSegment(ref reader), last);
+                        last = RecyclableReadOnlySequenceSegment.Create(ReadSegment(ref reader), last);
                     }
                     result.SetBody(new ReadOnlySequence<byte>(first, 0, last, last.Length), recycleBuffers: false);  // we're reusing the live payload buffers
                     break;
