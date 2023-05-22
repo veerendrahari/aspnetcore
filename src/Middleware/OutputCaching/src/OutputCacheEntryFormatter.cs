@@ -484,7 +484,7 @@ internal static class OutputCacheEntryFormatter
     {
         var arr = CommonHeaders;
         var pairs = new List<KeyValuePair<string, int>>(arr.Length);
-        for (int i = 0; i < arr.Length; i++)
+        for (var i = 0; i < arr.Length; i++)
         {
             var header = arr[i];
             if (!string.IsNullOrWhiteSpace(header)) // omit null/empty values
