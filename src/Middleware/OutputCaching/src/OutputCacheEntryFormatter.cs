@@ -5,6 +5,7 @@ using System.Buffers;
 using System.Collections.Frozen;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
@@ -149,6 +150,7 @@ internal static class OutputCacheEntryFormatter
         writer.Flush();
     }
 
+    [SkipLocalsInit]
     static void WriteCommonHeader(ref FormatterBinaryWriter writer, string? value)
     {
         if (string.IsNullOrEmpty(value))
@@ -169,10 +171,10 @@ internal static class OutputCacheEntryFormatter
                 const int MAX_STACK_BYTES = 256;
                 byte[]? leased = null;
 
-                Span<byte> buffer = bytes <= MAX_STACK_BYTES ? stackalloc byte[bytes] : new(leased = ArrayPool<byte>.Shared.Rent(bytes), 0, bytes);
+                Span<byte> buffer = bytes <= MAX_STACK_BYTES ? stackalloc byte[MAX_STACK_BYTES] : (leased = ArrayPool<byte>.Shared.Rent(bytes));
                 int actual = Encoding.UTF8.GetBytes(value, buffer);
                 Debug.Assert(actual == bytes);
-                writer.WriteRaw(buffer);
+                writer.WriteRaw(buffer.Slice(0, bytes));
                 if (leased is not null)
                 {
                     ArrayPool<byte>.Shared.Return(leased);
