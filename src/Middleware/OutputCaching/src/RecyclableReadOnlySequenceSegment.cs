@@ -7,6 +7,7 @@ using System.IO.Pipelines;
 using System.Runtime.InteropServices;
 
 namespace Microsoft.AspNetCore.OutputCaching;
+
 internal sealed class RecyclableReadOnlySequenceSegment : ReadOnlySequenceSegment<byte>
 {
     public int Length => Memory.Length;

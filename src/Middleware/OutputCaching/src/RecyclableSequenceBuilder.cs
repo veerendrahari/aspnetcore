@@ -19,10 +19,7 @@ internal sealed class RecyclableSequenceBuilder : IDisposable
 
     internal RecyclableSequenceBuilder(int segmentSize)
     {
-        if (segmentSize <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(segmentSize), segmentSize, $"{nameof(segmentSize)} must be greater than 0.");
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(segmentSize);
 
         _segmentSize = segmentSize;
     }
