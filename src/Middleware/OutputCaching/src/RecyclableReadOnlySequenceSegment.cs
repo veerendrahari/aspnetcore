@@ -27,7 +27,7 @@ internal sealed class RecyclableReadOnlySequenceSegment : ReadOnlySequenceSegmen
         return obj;
     }
 
-    const int TARGET_MAX = 128;
+    private const int TARGET_MAX = 128;
     static readonly ConcurrentQueue<RecyclableReadOnlySequenceSegment> s_Spares = new();
 
     public static void RecycleChain(RecyclableReadOnlySequenceSegment? obj, bool recycleBuffers = false)

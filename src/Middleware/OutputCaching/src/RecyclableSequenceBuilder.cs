@@ -10,7 +10,7 @@ namespace Microsoft.AspNetCore.OutputCaching;
 // allows capture of written payloads into a ReadOnlySequence<byte> based on RecyclableReadOnlySequenceSegment
 internal sealed class RecyclableSequenceBuilder : IDisposable
 {
-    RecyclableReadOnlySequenceSegment? _firstSegment, _currentSegment;
+    private RecyclableReadOnlySequenceSegment? _firstSegment, _currentSegment;
     private int _currentSegmentIndex;
     private readonly int _segmentSize;
     private bool _closed;

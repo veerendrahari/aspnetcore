@@ -18,8 +18,8 @@ internal ref struct FormatterBinaryWriter
     // note it also has APIs for writing raw BLOBs
 
     private readonly IBufferWriter<byte> target;
-    int offset, length;
-    ref byte root;
+    private int offset, length;
+    private ref byte root;
 
     public FormatterBinaryWriter(IBufferWriter<byte> target)
     {
@@ -86,7 +86,7 @@ internal ref struct FormatterBinaryWriter
 
         var bytes = Encoding.UTF8.GetByteCount(value);
         Write7BitEncodedInt(bytes); // length prefix
-        if (offset + bytes <= length)
+        if (bytes <= length - offset)
         {
             Encoding.UTF8.GetBytes(value, AvailableBuffer);
             offset += bytes;

@@ -17,10 +17,10 @@ internal ref struct FormatterBinaryReader
     // additionally, we add support for reading a string with length specified by the caller (rather than handled automatically),
     // and in-place (zero-copy) BLOB reads
 
-    readonly ReadOnlyMemory<byte> original; // used to allow us to zero-copy chunks out of the payload
-    readonly ref byte root;
-    readonly int length;
-    int offset;
+    private readonly ReadOnlyMemory<byte> original; // used to allow us to zero-copy chunks out of the payload
+    private readonly ref byte root;
+    private readonly int length;
+    private int offset;
 
     public bool IsEOF => offset >= length;
 
@@ -127,11 +127,12 @@ internal ref struct FormatterBinaryReader
     public string ReadString() => ReadString(Read7BitEncodedInt());
 
     public void SkipString() => Skip(Read7BitEncodedInt());
+
     public string ReadString(int bytes)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(bytes);
 
-        if (offset + bytes > length)
+        if (offset > length - bytes)
         {
             ThrowEndOfStream();
         }
@@ -147,7 +148,7 @@ internal ref struct FormatterBinaryReader
     public void Skip(int bytes)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(bytes);
-        if (offset + bytes > length)
+        if (offset > length - bytes)
         {
             ThrowEndOfStream();
         }
@@ -158,7 +159,7 @@ internal ref struct FormatterBinaryReader
     {
         ArgumentOutOfRangeException.ThrowIfNegative(count);
 
-        if (offset + count > length)
+        if (offset > length - count)
         {
             ThrowEndOfStream();
         }
@@ -175,7 +176,7 @@ internal ref struct FormatterBinaryReader
     {
         ArgumentOutOfRangeException.ThrowIfNegative(count);
 
-        if (offset + count > length)
+        if (offset > length - count)
         {
             ThrowEndOfStream();
         }
@@ -189,7 +190,8 @@ internal ref struct FormatterBinaryReader
     }
 
     [DoesNotReturn]
-    static void ThrowEndOfStream() => throw new EndOfStreamException();
+    private static void ThrowEndOfStream() => throw new EndOfStreamException();
+
     [DoesNotReturn]
-    static void ThrowOverflowException() => throw new OverflowException();
+    private static void ThrowOverflowException() => throw new OverflowException();
 }
