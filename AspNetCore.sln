@@ -1786,7 +1786,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Microsoft.AspNetCore.Authen
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "IdentitySample.ApiEndpoints", "src\Identity\samples\IdentitySample.ApiEndpoints\IdentitySample.ApiEndpoints.csproj", "{37FC77EA-AC44-4D08-B002-8EFF415C424A}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Microsoft.AspNetCore.OutputCaching.Performance", "src\Middleware\OutputCaching\perf\Microsoft.AspNetCore.OutputCaching.Performance.csproj", "{515A52FC-1F02-4D1C-AD23-758B1BBC008C}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Microsoft.AspNetCore.OutputCaching.Microbenchmarks", "src\Middleware\OutputCaching\perf\Microsoft.AspNetCore.OutputCaching.Microbenchmarks.csproj", "{515A52FC-1F02-4D1C-AD23-758B1BBC008C}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Microsoft.AspNetCore.OutputCaching.Microbenchmarks", "src\Middleware\OutputCaching\perf\Microbenchmarks\Microsoft.AspNetCore.OutputCaching.Microbenchmarks.csproj", "{6ACC2B1B-6175-4CAB-8DED-4BA1469C136C}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -10757,6 +10759,22 @@ Global
 		{515A52FC-1F02-4D1C-AD23-758B1BBC008C}.Release|x64.Build.0 = Release|Any CPU
 		{515A52FC-1F02-4D1C-AD23-758B1BBC008C}.Release|x86.ActiveCfg = Release|Any CPU
 		{515A52FC-1F02-4D1C-AD23-758B1BBC008C}.Release|x86.Build.0 = Release|Any CPU
+		{6ACC2B1B-6175-4CAB-8DED-4BA1469C136C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6ACC2B1B-6175-4CAB-8DED-4BA1469C136C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6ACC2B1B-6175-4CAB-8DED-4BA1469C136C}.Debug|arm64.ActiveCfg = Debug|Any CPU
+		{6ACC2B1B-6175-4CAB-8DED-4BA1469C136C}.Debug|arm64.Build.0 = Debug|Any CPU
+		{6ACC2B1B-6175-4CAB-8DED-4BA1469C136C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{6ACC2B1B-6175-4CAB-8DED-4BA1469C136C}.Debug|x64.Build.0 = Debug|Any CPU
+		{6ACC2B1B-6175-4CAB-8DED-4BA1469C136C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{6ACC2B1B-6175-4CAB-8DED-4BA1469C136C}.Debug|x86.Build.0 = Debug|Any CPU
+		{6ACC2B1B-6175-4CAB-8DED-4BA1469C136C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6ACC2B1B-6175-4CAB-8DED-4BA1469C136C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6ACC2B1B-6175-4CAB-8DED-4BA1469C136C}.Release|arm64.ActiveCfg = Release|Any CPU
+		{6ACC2B1B-6175-4CAB-8DED-4BA1469C136C}.Release|arm64.Build.0 = Release|Any CPU
+		{6ACC2B1B-6175-4CAB-8DED-4BA1469C136C}.Release|x64.ActiveCfg = Release|Any CPU
+		{6ACC2B1B-6175-4CAB-8DED-4BA1469C136C}.Release|x64.Build.0 = Release|Any CPU
+		{6ACC2B1B-6175-4CAB-8DED-4BA1469C136C}.Release|x86.ActiveCfg = Release|Any CPU
+		{6ACC2B1B-6175-4CAB-8DED-4BA1469C136C}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -11640,6 +11658,7 @@ Global
 		{66FA1041-5556-43A0-9CA3-F9937F085F6E} = {56291265-B7BF-4756-92AB-FC30F09381D1}
 		{37FC77EA-AC44-4D08-B002-8EFF415C424A} = {64B2A28F-6D82-4F2B-B0BB-88DE5216DD2C}
 		{515A52FC-1F02-4D1C-AD23-758B1BBC008C} = {AA5ABFBC-177C-421E-B743-005E0FD1248B}
+		{6ACC2B1B-6175-4CAB-8DED-4BA1469C136C} = {AA5ABFBC-177C-421E-B743-005E0FD1248B}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {3E8720B3-DBDD-498C-B383-2CC32A054E8F}

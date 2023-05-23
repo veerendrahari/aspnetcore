@@ -8,7 +8,7 @@ using BenchmarkDotNet.Configs;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Net.Http.Headers;
 
-namespace Microsoft.AspNetCore.OutputCaching.Benchmark;
+namespace Microsoft.AspNetCore.OutputCaching.Microbenchmarks;
 
 [MemoryDiagnoser, GroupBenchmarksBy(BenchmarkLogicalGroupRule.ByCategory), CategoriesColumn]
 public class EndToEndBenchmarks

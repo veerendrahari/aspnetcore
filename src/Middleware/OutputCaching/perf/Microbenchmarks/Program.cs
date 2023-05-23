@@ -3,7 +3,7 @@
 
 using System.Reflection;
 using BenchmarkDotNet.Running;
-using Microsoft.AspNetCore.OutputCaching.Benchmark;
+using Microsoft.AspNetCore.OutputCaching.Microbenchmarks;
 
 #if DEBUG
 var obj = new EndToEndBenchmarks();
