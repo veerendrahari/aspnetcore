@@ -174,7 +174,7 @@ internal static class OutputCacheEntryFormatter
                 Span<byte> buffer = bytes <= MAX_STACK_BYTES ? stackalloc byte[MAX_STACK_BYTES] : (leased = ArrayPool<byte>.Shared.Rent(bytes));
                 int actual = Encoding.UTF8.GetBytes(value, buffer);
                 Debug.Assert(actual == bytes);
-                writer.WriteRaw(buffer.Slice(0, bytes));
+                writer.WriteRaw(buffer.Slice(0, actual));
                 if (leased is not null)
                 {
                     ArrayPool<byte>.Shared.Return(leased);
