@@ -4,14 +4,16 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
     <ServerGarbageCollection>true</ServerGarbageCollection>
+    <DefineConstants>$(DefineConstants);IS_BENCHMARKS</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
     <Reference Include="Microsoft.AspNetCore.OutputCaching" />
     <Reference Include="BenchmarkDotNet" />
     <Reference Remove="Microsoft.CodeAnalysis.PublicApiAnalyzers" />
+
+    <Compile Include="$(SharedSourceRoot)BenchmarkRunner\*.cs" />
   </ItemGroup>
 
 </Project>
