@@ -150,7 +150,6 @@ internal static class OutputCacheEntryFormatter
         writer.Flush();
     }
 
-    [SkipLocalsInit]
     static void WriteCommonHeader(ref FormatterBinaryWriter writer, string? value)
     {
         if (string.IsNullOrEmpty(value))
@@ -165,20 +164,9 @@ internal static class OutputCacheEntryFormatter
             }
             else
             {
-                var bytes = Encoding.UTF8.GetByteCount(value);
-                writer.Write7BitEncodedInt(bytes << 1);
-
-                const int MAX_STACK_BYTES = 256;
-                byte[]? leased = null;
-
-                Span<byte> buffer = bytes <= MAX_STACK_BYTES ? stackalloc byte[MAX_STACK_BYTES] : (leased = ArrayPool<byte>.Shared.Rent(bytes));
-                int actual = Encoding.UTF8.GetBytes(value, buffer);
-                Debug.Assert(actual == bytes);
-                writer.WriteRaw(buffer.Slice(0, actual));
-                if (leased is not null)
-                {
-                    ArrayPool<byte>.Shared.Return(leased);
-                }
+                // use the length-prefixed UTF8 write in FormatterBinaryWriter,
+                // but with a left-shift applied
+                writer.Write(value, lengthShift: 1);
             }
         }
     }

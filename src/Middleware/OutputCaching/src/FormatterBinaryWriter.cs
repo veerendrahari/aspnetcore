@@ -74,7 +74,9 @@ internal ref struct FormatterBinaryWriter
         DebugAssertValid();
     }
 
-    public void Write(string value)
+    public void Write(string value) => Write(value, 0);
+
+    internal void Write(string value, int lengthShift)
     {
         ArgumentNullException.ThrowIfNull(value);
 
@@ -85,17 +87,19 @@ internal ref struct FormatterBinaryWriter
         }
 
         var bytes = Encoding.UTF8.GetByteCount(value);
-        Write7BitEncodedInt(bytes); // length prefix
+        Write7BitEncodedInt(bytes << lengthShift); // length prefix
         if (bytes <= length - offset)
         {
-            Encoding.UTF8.GetBytes(value, AvailableBuffer);
+            var actual = Encoding.UTF8.GetBytes(value, AvailableBuffer);
+            Debug.Assert(actual == bytes);
             offset += bytes;
         }
         else
         {
             Flush();
             // get the encoding to do the heavy lifting directly
-            Encoding.UTF8.GetBytes(value, target);
+            var actual = Encoding.UTF8.GetBytes(value, target);
+            Debug.Assert(actual == bytes);
         }
         DebugAssertValid();
     }
