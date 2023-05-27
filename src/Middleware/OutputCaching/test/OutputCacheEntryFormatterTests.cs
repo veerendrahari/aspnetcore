@@ -17,7 +17,7 @@ public class OutputCacheEntryFormatterTests
     {
         var store = new TestOutputCache();
         var key = "abc";
-        using var entry = new OutputCacheEntry(KnownTime, 200);
+        using var entry = new OutputCacheEntry(KnownTime, StatusCodes.Status200OK);
 
         await OutputCacheEntryFormatter.StoreAsync(key, entry, null, TimeSpan.Zero, store, default);
 
