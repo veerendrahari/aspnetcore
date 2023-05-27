@@ -82,7 +82,8 @@ internal sealed class OutputCacheEntry : IDisposable
         RecyclableReadOnlySequenceSegment.RecycleChain(body, _recycleBuffers);
         // ^^ note that this only recycles the chain, not the actual buffers
     }
-    static void Recycle<T>(ReadOnlyMemory<T> value)
+
+    private static void Recycle<T>(ReadOnlyMemory<T> value)
     {
         if (MemoryMarshal.TryGetArray<T>(value, out var segment) && segment.Array is { Length: > 0 })
         {
