@@ -20,7 +20,8 @@ internal static class RequestDelegateGeneratorSources
 
     public static string GeneratedCodeAttribute => $@"[System.CodeDom.Compiler.GeneratedCodeAttribute(""{typeof(RequestDelegateGeneratorSources).Assembly.FullName}"", ""{typeof(RequestDelegateGeneratorSources).Assembly.GetName().Version}"")]";
 
-    public static string ContentTypeConstantsType => """
+    public static string ContentTypeConstantsType => $$"""
+    {{GeneratedCodeAttribute}}
     file static class GeneratedMetadataConstants
     {
         public static readonly string[] JsonContentType = new [] { "application/json" };
@@ -31,7 +32,8 @@ internal static class RequestDelegateGeneratorSources
 
 """;
 
-    public static string ProducesResponseTypeMetadataType => """
+    public static string ProducesResponseTypeMetadataType => $$"""
+    {{GeneratedCodeAttribute}}
     file sealed class GeneratedProducesResponseTypeMetadata : IProducesResponseTypeMetadata
     {
         public GeneratedProducesResponseTypeMetadata(Type? type, int statusCode, string[] contentTypes)
@@ -50,7 +52,8 @@ internal static class RequestDelegateGeneratorSources
 
 """;
 
-    public static string AcceptsMetadataType => """
+    public static string AcceptsMetadataType => $$"""
+    {{GeneratedCodeAttribute}}
     file sealed class GeneratedAcceptsMetadata : IAcceptsMetadata
     {
         public GeneratedAcceptsMetadata(string[] contentTypes)
@@ -95,9 +98,11 @@ internal static class RequestDelegateGeneratorSources
 """;
 
     public static string TryResolveBodyAsyncMethod => """
-        private static async ValueTask<(bool, T?)> TryResolveBodyAsync<T>(HttpContext httpContext, LogOrThrowExceptionHelper logOrThrowExceptionHelper, bool allowEmpty, string parameterTypeName, string parameterName, bool isInferred = false)
+        private static async ValueTask<(bool, T?)> TryResolveBodyAsync<T>(HttpContext httpContext, LogOrThrowExceptionHelper logOrThrowExceptionHelper, bool allowEmpty, string parameterTypeName, string parameterName, JsonTypeInfo<T> jsonTypeInfo, bool isInferred = false)
         {
             var feature = httpContext.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpRequestBodyDetectionFeature>();
+            T? bodyValue = default;
+            var bodyValueSet = false;
 
             if (feature?.CanHaveBody == true)
             {
@@ -109,21 +114,8 @@ internal static class RequestDelegateGeneratorSources
                 }
                 try
                 {
-                    var bodyValue = await httpContext.Request.ReadFromJsonAsync<T>();
-                    if (!allowEmpty && bodyValue == null)
-                    {
-                        if (!isInferred)
-                        {
-                            logOrThrowExceptionHelper.RequiredParameterNotProvided(parameterTypeName, parameterName, "body");
-                        }
-                        else
-                        {
-                            logOrThrowExceptionHelper.ImplicitBodyNotProvided(parameterName);
-                        }
-                        httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-                        return (false, bodyValue);
-                    }
-                    return (true, bodyValue);
+                    bodyValue = await httpContext.Request.ReadFromJsonAsync(jsonTypeInfo);
+                    bodyValueSet = bodyValue != null;
                 }
                 catch (BadHttpRequestException badHttpRequestException)
                 {
@@ -144,12 +136,22 @@ internal static class RequestDelegateGeneratorSources
                     return (false, default);
                 }
             }
-            else if (!allowEmpty)
+
+            if (!allowEmpty && !bodyValueSet)
             {
+                if (!isInferred)
+                {
+                    logOrThrowExceptionHelper.RequiredParameterNotProvided(parameterTypeName, parameterName, "body");
+                }
+                else
+                {
+                    logOrThrowExceptionHelper.ImplicitBodyNotProvided(parameterName);
+                }
                 httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+                return (false, bodyValue);
             }
 
-            return (allowEmpty, default);
+            return (true, bodyValue);
         }
 """;
 
@@ -205,6 +207,11 @@ internal static class RequestDelegateGeneratorSources
             => T.TryParse(s, provider, out result);
 """;
 
+    public static string ExecuteAsyncExplicitMethod => """
+        private static Task ExecuteAsyncExplicit(IResult result, HttpContext httpContext)
+            => result.ExecuteAsync(httpContext);
+""";
+
     public static string BindAsyncMethod => """
         private static ValueTask<T?> BindAsync<T>(HttpContext context, ParameterInfo parameter)
             where T : class, IBindableFromHttpContext<T>
@@ -222,24 +229,8 @@ internal static class RequestDelegateGeneratorSources
         }
 """;
 
-    public static string WriteToResponseAsyncMethod => """
-        [UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
-            Justification = "The 'JsonSerializer.IsReflectionEnabledByDefault' feature switch, which is set to false by default for trimmed ASP.NET apps, ensures the JsonSerializer doesn't use Reflection.")]
-        [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "See above.")]
-        private static Task WriteToResponseAsync<T>(T? value, HttpContext httpContext, JsonTypeInfo<T> jsonTypeInfo)
-        {
-            var runtimeType = value?.GetType();
-            if (runtimeType is null || jsonTypeInfo.Type == runtimeType || jsonTypeInfo.PolymorphismOptions is not null)
-            {
-                return httpContext.Response.WriteAsJsonAsync(value!, jsonTypeInfo);
-            }
-
-            return httpContext.Response.WriteAsJsonAsync<object?>(value, jsonTypeInfo.Options);
-        }
-""";
-
     public static string ResolveJsonBodyOrServiceMethod => """
-        private static Func<HttpContext, bool, ValueTask<(bool, T?)>> ResolveJsonBodyOrService<T>(LogOrThrowExceptionHelper logOrThrowExceptionHelper, string parameterTypeName, string parameterName, IServiceProviderIsService? serviceProviderIsService = null)
+        private static Func<HttpContext, bool, ValueTask<(bool, T?)>> ResolveJsonBodyOrService<T>(LogOrThrowExceptionHelper logOrThrowExceptionHelper, string parameterTypeName, string parameterName, JsonOptions jsonOptions, IServiceProviderIsService? serviceProviderIsService = null)
         {
             if (serviceProviderIsService is not null)
             {
@@ -248,11 +239,13 @@ internal static class RequestDelegateGeneratorSources
                     return static (httpContext, isOptional) => new ValueTask<(bool, T?)>((true, httpContext.RequestServices.GetService<T>()));
                 }
             }
-            return (httpContext, isOptional) => TryResolveBodyAsync<T>(httpContext, logOrThrowExceptionHelper, isOptional, parameterTypeName, parameterName, isInferred: true);
+            var jsonTypeInfo = (JsonTypeInfo<T>)jsonOptions.SerializerOptions.GetTypeInfo(typeof(T));
+            return (httpContext, isOptional) => TryResolveBodyAsync<T>(httpContext, logOrThrowExceptionHelper, isOptional, parameterTypeName, parameterName, jsonTypeInfo, isInferred: true);
         }
 """;
 
     public static string LogOrThrowExceptionHelperClass => $$"""
+    {{GeneratedCodeAttribute}}
     file sealed class LogOrThrowExceptionHelper
     {
         private readonly ILogger? _rdgLogger;
@@ -397,7 +390,8 @@ internal static class RequestDelegateGeneratorSources
     }
 """;
 
-    public static string PropertyAsParameterInfoClass = """
+    public static string PropertyAsParameterInfoClass = $$"""
+    {{GeneratedCodeAttribute}}
     file sealed class PropertyAsParameterInfo : ParameterInfo
     {
         private readonly PropertyInfo _underlyingProperty;
@@ -542,6 +536,7 @@ namespace Microsoft.AspNetCore.Http.Generated
     using MetadataPopulator = System.Func<System.Reflection.MethodInfo, Microsoft.AspNetCore.Http.RequestDelegateFactoryOptions?, Microsoft.AspNetCore.Http.RequestDelegateMetadataResult>;
     using RequestDelegateFactoryFunc = System.Func<System.Delegate, Microsoft.AspNetCore.Http.RequestDelegateFactoryOptions, Microsoft.AspNetCore.Http.RequestDelegateMetadataResult?, Microsoft.AspNetCore.Http.RequestDelegateResult>;
 
+    {{GeneratedCodeAttribute}}
     file static class GeneratedRouteBuilderExtensionsCore
     {
 {{GetGenericThunks(genericThunks)}}
@@ -564,10 +559,7 @@ namespace Microsoft.AspNetCore.Http.Generated
             return filteredInvocation;
         }
 
-        [UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
-            Justification = "The 'JsonSerializer.IsReflectionEnabledByDefault' feature switch, which is set to false by default for trimmed ASP.NET apps, ensures the JsonSerializer doesn't use Reflection.")]
-        [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "See above.")]
-        private static Task ExecuteObjectResult(object? obj, HttpContext httpContext)
+        private static Task ExecuteReturnAsync(object? obj, HttpContext httpContext, JsonTypeInfo<object?> jsonTypeInfo)
         {
             if (obj is IResult r)
             {
@@ -579,9 +571,30 @@ namespace Microsoft.AspNetCore.Http.Generated
             }
             else
             {
-                return httpContext.Response.WriteAsJsonAsync(obj);
+                return WriteJsonResponseAsync(httpContext.Response, obj, jsonTypeInfo);
             }
         }
+
+        [UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
+            Justification = "The 'JsonSerializer.IsReflectionEnabledByDefault' feature switch, which is set to false by default for trimmed ASP.NET apps, ensures the JsonSerializer doesn't use Reflection.")]
+        [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "See above.")]
+        private static Task WriteJsonResponseAsync<T>(HttpResponse response, T? value, JsonTypeInfo<T?> jsonTypeInfo)
+        {
+            var runtimeType = value?.GetType();
+
+            if (jsonTypeInfo.ShouldUseWith(runtimeType))
+            {
+                return HttpResponseJsonExtensions.WriteAsJsonAsync(response, value, jsonTypeInfo, default);
+            }
+
+            return response.WriteAsJsonAsync<object?>(value, jsonTypeInfo.Options);
+        }
+
+        private static bool HasKnownPolymorphism(this JsonTypeInfo jsonTypeInfo)
+            => jsonTypeInfo.Type.IsSealed || jsonTypeInfo.Type.IsValueType || jsonTypeInfo.PolymorphismOptions is not null;
+
+        private static bool ShouldUseWith(this JsonTypeInfo jsonTypeInfo, [NotNullWhen(false)] Type? runtimeType)
+            => runtimeType is null || jsonTypeInfo.Type == runtimeType || jsonTypeInfo.HasKnownPolymorphism();
 
 {{helperMethods}}
     }

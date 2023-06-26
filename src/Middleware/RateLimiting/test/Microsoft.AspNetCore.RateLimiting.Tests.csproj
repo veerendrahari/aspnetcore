@@ -8,7 +8,9 @@
     <Reference Include="Microsoft.AspNetCore.Http" />
     <Reference Include="Microsoft.AspNetCore.RateLimiting" />
     <Reference Include="Microsoft.AspNetCore.Routing" />
+    <Reference Include="Microsoft.Extensions.Telemetry.Testing" />
 
-    <Compile Include="$(SharedSourceRoot)SyncPoint\SyncPoint.cs" Link="Internal\SyncPoint.cs" />
+    <Compile Include="$(SharedSourceRoot)Metrics\TestMeterFactory.cs" LinkBase="shared" />
+    <Compile Include="$(SharedSourceRoot)SyncPoint\SyncPoint.cs" LinkBase="shared" />
   </ItemGroup>
 </Project>

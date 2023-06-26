@@ -5,8 +5,6 @@ using System.Buffers;
 using System.Collections.Frozen;
 using System.Diagnostics;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Text;
 using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
 
@@ -47,6 +45,17 @@ internal static class OutputCacheEntryFormatter
 
         string[] tagsArr = tags is { Count: > 0 } ? tags.ToArray() : Array.Empty<string>();
         await store.SetAsync(key, buffer.ToArray(), tagsArr, duration, cancellationToken);
+
+        if (store is IOutputCacheBufferStore bufferStore)
+        {
+            await bufferStore.SetAsync(key, new(buffer.GetMemory()), tagsArr, duration, cancellationToken);
+        }
+        else
+        {
+            // legacy API/in-proc: create an isolated right-sized byte[] for the payload
+            await store.SetAsync(key, buffer.ToArray(), tagsArr, duration, cancellationToken);
+        }
+
         buffer.Dispose(); // this is intentionally not using "using"; only recycle on success, to avoid async code accessing shared buffers (esp. in cancellation)
     }
 

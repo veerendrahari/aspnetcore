@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System.Diagnostics;
+using System.Diagnostics.Metrics;
 using System.Net;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -9,10 +10,11 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.Metrics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
-using Microsoft.Extensions.Metrics;
+using Microsoft.Extensions.Telemetry.Testing.Metering;
 
 namespace Microsoft.AspNetCore.Diagnostics;
 
@@ -914,15 +916,8 @@ public class ExceptionHandlerTest
     public async Task UnhandledError_ExceptionNameTagAdded()
     {
         // Arrange
-        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
         var meterFactory = new TestMeterFactory();
-        var meterRegistry = new TestMeterRegistry(meterFactory.Meters);
-        var instrumentRecorder = new InstrumentRecorder<double>(meterRegistry, "Microsoft.AspNetCore.Hosting", "request-duration");
-        instrumentRecorder.Register(m =>
-        {
-            tcs.SetResult();
-        });
+        using var instrumentCollector = new MetricCollector<double>(meterFactory, "Microsoft.AspNetCore.Hosting", "http-server-request-duration");
 
         using var host = new HostBuilder()
             .ConfigureServices(s =>
@@ -958,11 +953,11 @@ public class ExceptionHandlerTest
         var response = await server.CreateClient().GetAsync("/path");
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
 
-        await tcs.Task.DefaultTimeout();
+        await instrumentCollector.WaitForMeasurementsAsync(numMeasurements: 1).DefaultTimeout();
 
         // Assert
         Assert.Collection(
-            instrumentRecorder.GetMeasurements(),
+            instrumentCollector.GetMeasurementSnapshot(),
             m =>
             {
                 Assert.True(m.Value > 0);

@@ -116,6 +116,7 @@ namespace Microsoft.AspNetCore.Http.Generated
     using MetadataPopulator = System.Func<System.Reflection.MethodInfo, Microsoft.AspNetCore.Http.RequestDelegateFactoryOptions?, Microsoft.AspNetCore.Http.RequestDelegateMetadataResult>;
     using RequestDelegateFactoryFunc = System.Func<System.Delegate, Microsoft.AspNetCore.Http.RequestDelegateFactoryOptions, Microsoft.AspNetCore.Http.RequestDelegateMetadataResult?, Microsoft.AspNetCore.Http.RequestDelegateResult>;
 
+    %GENERATEDCODEATTRIBUTE%
     file static class GeneratedRouteBuilderExtensionsCore
     {
 
@@ -134,10 +135,15 @@ namespace Microsoft.AspNetCore.Http.Generated
                 {
                     Debug.Assert(options != null, "RequestDelegateFactoryOptions not found.");
                     Debug.Assert(options.EndpointBuilder != null, "EndpointBuilder not found.");
+                    Debug.Assert(options.EndpointBuilder.ApplicationServices != null, "ApplicationServices not found.");
+                    Debug.Assert(options.EndpointBuilder.FilterFactories != null, "FilterFactories not found.");
                     var handler = (System.Func<global::System.String>)del;
                     EndpointFilterDelegate? filteredInvocation = null;
+                    var serviceProvider = options.ServiceProvider ?? options.EndpointBuilder.ApplicationServices;
+                    var jsonOptions = serviceProvider?.GetService<IOptions<JsonOptions>>()?.Value ?? new JsonOptions();
+                    var objectJsonTypeInfo = (JsonTypeInfo<object?>)jsonOptions.SerializerOptions.GetTypeInfo(typeof(object));
 
-                    if (options?.EndpointBuilder?.FilterFactories.Count > 0)
+                    if (options.EndpointBuilder.FilterFactories.Count > 0)
                     {
                         filteredInvocation = GeneratedRouteBuilderExtensionsCore.BuildFilterDelegate(ic =>
                         {
@@ -159,8 +165,15 @@ namespace Microsoft.AspNetCore.Http.Generated
                             httpContext.Response.StatusCode = 400;
                             return Task.CompletedTask;
                         }
-                        httpContext.Response.ContentType ??= "text/plain";
                         var result = handler();
+                        if (result is string)
+                        {
+                            httpContext.Response.ContentType ??= "text/plain; charset=utf-8";
+                        }
+                        else
+                        {
+                            httpContext.Response.ContentType ??= "application/json; charset=utf-8";
+                        }
                         return httpContext.Response.WriteAsync(result);
                     }
 
@@ -172,7 +185,10 @@ namespace Microsoft.AspNetCore.Http.Generated
                             httpContext.Response.StatusCode = 400;
                         }
                         var result = await filteredInvocation(EndpointFilterInvocationContext.Create(httpContext));
-                        await GeneratedRouteBuilderExtensionsCore.ExecuteObjectResult(result, httpContext);
+                        if (result is not null)
+                        {
+                            await GeneratedRouteBuilderExtensionsCore.ExecuteReturnAsync(result, httpContext, objectJsonTypeInfo);
+                        }
                     }
 
                     RequestDelegate targetDelegate = filteredInvocation is null ? RequestHandler : RequestHandlerFiltered;
@@ -192,10 +208,15 @@ namespace Microsoft.AspNetCore.Http.Generated
                 {
                     Debug.Assert(options != null, "RequestDelegateFactoryOptions not found.");
                     Debug.Assert(options.EndpointBuilder != null, "EndpointBuilder not found.");
+                    Debug.Assert(options.EndpointBuilder.ApplicationServices != null, "ApplicationServices not found.");
+                    Debug.Assert(options.EndpointBuilder.FilterFactories != null, "FilterFactories not found.");
                     var handler = (System.Func<global::System.String>)del;
                     EndpointFilterDelegate? filteredInvocation = null;
+                    var serviceProvider = options.ServiceProvider ?? options.EndpointBuilder.ApplicationServices;
+                    var jsonOptions = serviceProvider?.GetService<IOptions<JsonOptions>>()?.Value ?? new JsonOptions();
+                    var objectJsonTypeInfo = (JsonTypeInfo<object?>)jsonOptions.SerializerOptions.GetTypeInfo(typeof(object));
 
-                    if (options?.EndpointBuilder?.FilterFactories.Count > 0)
+                    if (options.EndpointBuilder.FilterFactories.Count > 0)
                     {
                         filteredInvocation = GeneratedRouteBuilderExtensionsCore.BuildFilterDelegate(ic =>
                         {
@@ -217,8 +238,15 @@ namespace Microsoft.AspNetCore.Http.Generated
                             httpContext.Response.StatusCode = 400;
                             return Task.CompletedTask;
                         }
-                        httpContext.Response.ContentType ??= "text/plain";
                         var result = handler();
+                        if (result is string)
+                        {
+                            httpContext.Response.ContentType ??= "text/plain; charset=utf-8";
+                        }
+                        else
+                        {
+                            httpContext.Response.ContentType ??= "application/json; charset=utf-8";
+                        }
                         return httpContext.Response.WriteAsync(result);
                     }
 
@@ -230,7 +258,10 @@ namespace Microsoft.AspNetCore.Http.Generated
                             httpContext.Response.StatusCode = 400;
                         }
                         var result = await filteredInvocation(EndpointFilterInvocationContext.Create(httpContext));
-                        await GeneratedRouteBuilderExtensionsCore.ExecuteObjectResult(result, httpContext);
+                        if (result is not null)
+                        {
+                            await GeneratedRouteBuilderExtensionsCore.ExecuteReturnAsync(result, httpContext, objectJsonTypeInfo);
+                        }
                     }
 
                     RequestDelegate targetDelegate = filteredInvocation is null ? RequestHandler : RequestHandlerFiltered;
@@ -250,16 +281,21 @@ namespace Microsoft.AspNetCore.Http.Generated
                 {
                     Debug.Assert(options != null, "RequestDelegateFactoryOptions not found.");
                     Debug.Assert(options.EndpointBuilder != null, "EndpointBuilder not found.");
+                    Debug.Assert(options.EndpointBuilder.ApplicationServices != null, "ApplicationServices not found.");
+                    Debug.Assert(options.EndpointBuilder.FilterFactories != null, "FilterFactories not found.");
                     var handler = (System.Func<global::System.Threading.Tasks.Task<global::System.String>>)del;
                     EndpointFilterDelegate? filteredInvocation = null;
+                    var serviceProvider = options.ServiceProvider ?? options.EndpointBuilder.ApplicationServices;
+                    var jsonOptions = serviceProvider?.GetService<IOptions<JsonOptions>>()?.Value ?? new JsonOptions();
+                    var objectJsonTypeInfo = (JsonTypeInfo<object?>)jsonOptions.SerializerOptions.GetTypeInfo(typeof(object));
 
-                    if (options?.EndpointBuilder?.FilterFactories.Count > 0)
+                    if (options.EndpointBuilder.FilterFactories.Count > 0)
                     {
                         filteredInvocation = GeneratedRouteBuilderExtensionsCore.BuildFilterDelegate(async ic =>
                         {
                             if (ic.HttpContext.Response.StatusCode == 400)
                             {
-                                return ValueTask.FromResult<object?>(Results.Empty);
+                                return (object?)Results.Empty;
                             }
                             var result = await handler();
                             return (object?)result;
@@ -276,8 +312,15 @@ namespace Microsoft.AspNetCore.Http.Generated
                             httpContext.Response.StatusCode = 400;
                             return;
                         }
-                        httpContext.Response.ContentType ??= "application/json";
                         var result = await handler();
+                        if (result is string)
+                        {
+                            httpContext.Response.ContentType ??= "text/plain; charset=utf-8";
+                        }
+                        else
+                        {
+                            httpContext.Response.ContentType ??= "application/json; charset=utf-8";
+                        }
                         await httpContext.Response.WriteAsync(result);
                     }
 
@@ -289,7 +332,10 @@ namespace Microsoft.AspNetCore.Http.Generated
                             httpContext.Response.StatusCode = 400;
                         }
                         var result = await filteredInvocation(EndpointFilterInvocationContext.Create(httpContext));
-                        await GeneratedRouteBuilderExtensionsCore.ExecuteObjectResult(result, httpContext);
+                        if (result is not null)
+                        {
+                            await GeneratedRouteBuilderExtensionsCore.ExecuteReturnAsync(result, httpContext, objectJsonTypeInfo);
+                        }
                     }
 
                     RequestDelegate targetDelegate = filteredInvocation is null ? RequestHandler : RequestHandlerFiltered;
@@ -309,16 +355,21 @@ namespace Microsoft.AspNetCore.Http.Generated
                 {
                     Debug.Assert(options != null, "RequestDelegateFactoryOptions not found.");
                     Debug.Assert(options.EndpointBuilder != null, "EndpointBuilder not found.");
+                    Debug.Assert(options.EndpointBuilder.ApplicationServices != null, "ApplicationServices not found.");
+                    Debug.Assert(options.EndpointBuilder.FilterFactories != null, "FilterFactories not found.");
                     var handler = (System.Func<global::System.Threading.Tasks.ValueTask<global::System.String>>)del;
                     EndpointFilterDelegate? filteredInvocation = null;
+                    var serviceProvider = options.ServiceProvider ?? options.EndpointBuilder.ApplicationServices;
+                    var jsonOptions = serviceProvider?.GetService<IOptions<JsonOptions>>()?.Value ?? new JsonOptions();
+                    var objectJsonTypeInfo = (JsonTypeInfo<object?>)jsonOptions.SerializerOptions.GetTypeInfo(typeof(object));
 
-                    if (options?.EndpointBuilder?.FilterFactories.Count > 0)
+                    if (options.EndpointBuilder.FilterFactories.Count > 0)
                     {
                         filteredInvocation = GeneratedRouteBuilderExtensionsCore.BuildFilterDelegate(async ic =>
                         {
                             if (ic.HttpContext.Response.StatusCode == 400)
                             {
-                                return ValueTask.FromResult<object?>(Results.Empty);
+                                return (object?)Results.Empty;
                             }
                             var result = await handler();
                             return (object?)result;
@@ -335,8 +386,15 @@ namespace Microsoft.AspNetCore.Http.Generated
                             httpContext.Response.StatusCode = 400;
                             return;
                         }
-                        httpContext.Response.ContentType ??= "application/json";
                         var result = await handler();
+                        if (result is string)
+                        {
+                            httpContext.Response.ContentType ??= "text/plain; charset=utf-8";
+                        }
+                        else
+                        {
+                            httpContext.Response.ContentType ??= "application/json; charset=utf-8";
+                        }
                         await httpContext.Response.WriteAsync(result);
                     }
 
@@ -348,7 +406,10 @@ namespace Microsoft.AspNetCore.Http.Generated
                             httpContext.Response.StatusCode = 400;
                         }
                         var result = await filteredInvocation(EndpointFilterInvocationContext.Create(httpContext));
-                        await GeneratedRouteBuilderExtensionsCore.ExecuteObjectResult(result, httpContext);
+                        if (result is not null)
+                        {
+                            await GeneratedRouteBuilderExtensionsCore.ExecuteReturnAsync(result, httpContext, objectJsonTypeInfo);
+                        }
                     }
 
                     RequestDelegate targetDelegate = filteredInvocation is null ? RequestHandler : RequestHandlerFiltered;
@@ -387,10 +448,7 @@ namespace Microsoft.AspNetCore.Http.Generated
             return filteredInvocation;
         }
 
-        [UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
-            Justification = "The 'JsonSerializer.IsReflectionEnabledByDefault' feature switch, which is set to false by default for trimmed ASP.NET apps, ensures the JsonSerializer doesn't use Reflection.")]
-        [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "See above.")]
-        private static Task ExecuteObjectResult(object? obj, HttpContext httpContext)
+        private static Task ExecuteReturnAsync(object? obj, HttpContext httpContext, JsonTypeInfo<object?> jsonTypeInfo)
         {
             if (obj is IResult r)
             {
@@ -402,13 +460,35 @@ namespace Microsoft.AspNetCore.Http.Generated
             }
             else
             {
-                return httpContext.Response.WriteAsJsonAsync(obj);
+                return WriteJsonResponseAsync(httpContext.Response, obj, jsonTypeInfo);
             }
         }
+
+        [UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
+            Justification = "The 'JsonSerializer.IsReflectionEnabledByDefault' feature switch, which is set to false by default for trimmed ASP.NET apps, ensures the JsonSerializer doesn't use Reflection.")]
+        [UnconditionalSuppressMessage("AOT", "IL3050:RequiresDynamicCode", Justification = "See above.")]
+        private static Task WriteJsonResponseAsync<T>(HttpResponse response, T? value, JsonTypeInfo<T?> jsonTypeInfo)
+        {
+            var runtimeType = value?.GetType();
+
+            if (jsonTypeInfo.ShouldUseWith(runtimeType))
+            {
+                return HttpResponseJsonExtensions.WriteAsJsonAsync(response, value, jsonTypeInfo, default);
+            }
+
+            return response.WriteAsJsonAsync<object?>(value, jsonTypeInfo.Options);
+        }
+
+        private static bool HasKnownPolymorphism(this JsonTypeInfo jsonTypeInfo)
+            => jsonTypeInfo.Type.IsSealed || jsonTypeInfo.Type.IsValueType || jsonTypeInfo.PolymorphismOptions is not null;
+
+        private static bool ShouldUseWith(this JsonTypeInfo jsonTypeInfo, [NotNullWhen(false)] Type? runtimeType)
+            => runtimeType is null || jsonTypeInfo.Type == runtimeType || jsonTypeInfo.HasKnownPolymorphism();
 
 
     }
 
+    %GENERATEDCODEATTRIBUTE%
     file sealed class GeneratedProducesResponseTypeMetadata : IProducesResponseTypeMetadata
     {
         public GeneratedProducesResponseTypeMetadata(Type? type, int statusCode, string[] contentTypes)
@@ -425,6 +505,7 @@ namespace Microsoft.AspNetCore.Http.Generated
         public IEnumerable<string> ContentTypes { get; }
     }
 
+    %GENERATEDCODEATTRIBUTE%
     file static class GeneratedMetadataConstants
     {
         public static readonly string[] JsonContentType = new [] { "application/json" };
@@ -434,6 +515,7 @@ namespace Microsoft.AspNetCore.Http.Generated
     }
 
 
+    %GENERATEDCODEATTRIBUTE%
     file sealed class LogOrThrowExceptionHelper
     {
         private readonly ILogger? _rdgLogger;

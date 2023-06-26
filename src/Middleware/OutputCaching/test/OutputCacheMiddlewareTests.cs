@@ -7,6 +7,7 @@ using System.Text.Unicode;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.OutputCaching.Memory;
+using Microsoft.AspNetCore.Testing;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Primitives;
@@ -349,7 +350,7 @@ public class OutputCacheMiddlewareTests
     [Fact]
     public void StartResponseAsync_IfAllowResponseCaptureIsTrue_SetsResponseTime()
     {
-        var timeProvider = new TestTimeProvider();
+        var timeProvider = new MockTimeProvider();
         var middleware = TestUtils.CreateTestMiddleware(options: new OutputCacheOptions
         {
             TimeProvider = timeProvider
@@ -365,7 +366,7 @@ public class OutputCacheMiddlewareTests
     [Fact]
     public void StartResponseAsync_IfAllowResponseCaptureIsTrue_SetsResponseTimeOnlyOnce()
     {
-        var timeProvider = new TestTimeProvider();
+        var timeProvider = new MockTimeProvider();
         var middleware = TestUtils.CreateTestMiddleware(options: new OutputCacheOptions
         {
             TimeProvider = timeProvider
@@ -402,7 +403,7 @@ public class OutputCacheMiddlewareTests
     {
         // The Expires header should not be used when set in the response
 
-        var timeProvider = new TestTimeProvider(DateTimeOffset.MinValue);
+        var timeProvider = new MockTimeProvider();
         var options = new OutputCacheOptions
         {
             TimeProvider = timeProvider
@@ -425,7 +426,7 @@ public class OutputCacheMiddlewareTests
     {
         // The MaxAge header should not be used if set in the response
 
-        var timeProvider = new TestTimeProvider();
+        var timeProvider = new MockTimeProvider();
         var sink = new TestSink();
         var options = new OutputCacheOptions
         {
@@ -451,7 +452,7 @@ public class OutputCacheMiddlewareTests
     [Fact]
     public void FinalizeCacheHeadersAsync_ResponseValidity_UseSharedMaxAgeIfAvailable()
     {
-        var timeProvider = new TestTimeProvider();
+        var timeProvider = new MockTimeProvider();
         var sink = new TestSink();
         var options = new OutputCacheOptions
         {

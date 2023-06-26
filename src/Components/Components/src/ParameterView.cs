@@ -103,9 +103,9 @@ public readonly struct ParameterView
     /// Returns a dictionary populated with the contents of the <see cref="ParameterView"/>.
     /// </summary>
     /// <returns>A dictionary populated with the contents of the <see cref="ParameterView"/>.</returns>
-    public IReadOnlyDictionary<string, object> ToDictionary()
+    public IReadOnlyDictionary<string, object?> ToDictionary()
     {
-        var result = new Dictionary<string, object>();
+        var result = new Dictionary<string, object?>();
         foreach (var entry in this)
         {
             result[entry.Name] = entry.Value;
@@ -423,7 +423,8 @@ public readonly struct ParameterView
                 _currentIndex = nextIndex;
 
                 var state = _cascadingParameters[_currentIndex];
-                _current = new ParameterValue(state.LocalValueName, state.ValueSupplier.CurrentValue!, true);
+                var currentValue = state.ValueSupplier.GetCurrentValue(state.ParameterInfo);
+                _current = new ParameterValue(state.ParameterInfo.PropertyName, currentValue!, true);
                 return true;
             }
             else

@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http2;
 using Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Http3;
 using Microsoft.AspNetCore.Server.Kestrel.Core.Internal.Infrastructure;
 using Microsoft.Extensions.Logging;
+using HttpProtocol = Microsoft.AspNetCore.Http.HttpProtocol;
 
 namespace Microsoft.AspNetCore.Server.Kestrel.Core.Internal;
 
@@ -21,7 +22,7 @@ internal sealed class HttpConnection : ITimeoutHandler
     private static ReadOnlySpan<byte> Http2Id => "h2"u8;
 
     private readonly BaseHttpConnectionContext _context;
-    private readonly ISystemClock _systemClock;
+    private readonly TimeProvider _timeProvider;
     private readonly TimeoutControl _timeoutControl;
 
     private readonly object _protocolSelectionLock = new object();
@@ -34,9 +35,9 @@ internal sealed class HttpConnection : ITimeoutHandler
     public HttpConnection(BaseHttpConnectionContext context)
     {
         _context = context;
-        _systemClock = _context.ServiceContext.SystemClock;
+        _timeProvider = _context.ServiceContext.TimeProvider;
 
-        _timeoutControl = new TimeoutControl(this);
+        _timeoutControl = new TimeoutControl(this, _timeProvider);
 
         // Tests override the timeout control sometimes
         _context.TimeoutControl ??= _timeoutControl;
@@ -49,7 +50,7 @@ internal sealed class HttpConnection : ITimeoutHandler
         try
         {
             // Ensure TimeoutControl._lastTimestamp is initialized before anything that could set timeouts runs.
-            _timeoutControl.Initialize(_systemClock.UtcNowTicks);
+            _timeoutControl.Initialize();
 
             IRequestProcessor? requestProcessor = null;
 
@@ -59,6 +60,7 @@ internal sealed class HttpConnection : ITimeoutHandler
                     // _http1Connection must be initialized before adding the connection to the connection manager
                     requestProcessor = _http1Connection = new Http1Connection<TContext>((HttpConnectionContext)_context);
                     _protocolSelectionState = ProtocolSelectionState.Selected;
+                    AddMetricsHttpProtocolTag(HttpProtocol.Http11);
                     break;
                 case HttpProtocols.Http2:
                     // _http2Connection must be initialized before yielding control to the transport thread,
@@ -66,10 +68,12 @@ internal sealed class HttpConnection : ITimeoutHandler
                     // _http2Connection is about to be initialized.
                     requestProcessor = new Http2Connection((HttpConnectionContext)_context);
                     _protocolSelectionState = ProtocolSelectionState.Selected;
+                    AddMetricsHttpProtocolTag(HttpProtocol.Http2);
                     break;
                 case HttpProtocols.Http3:
                     requestProcessor = new Http3Connection((HttpMultiplexedConnectionContext)_context);
                     _protocolSelectionState = ProtocolSelectionState.Selected;
+                    AddMetricsHttpProtocolTag(HttpProtocol.Http3);
                     break;
                 case HttpProtocols.None:
                     // An error was already logged in SelectProtocol(), but we should close the connection.
@@ -109,6 +113,14 @@ internal sealed class HttpConnection : ITimeoutHandler
         catch (Exception ex)
         {
             Log.LogCritical(0, ex, $"Unexpected exception in {nameof(HttpConnection)}.{nameof(ProcessRequestsAsync)}.");
+        }
+    }
+
+    private void AddMetricsHttpProtocolTag(string httpProtocol)
+    {
+        if (_context.ConnectionContext.Features.Get<IConnectionMetricsTagsFeature>() is { } metricsTags)
+        {
+            metricsTags.Tags.Add(new KeyValuePair<string, object?>("http-protocol", httpProtocol));
         }
     }
 
@@ -236,10 +248,9 @@ internal sealed class HttpConnection : ITimeoutHandler
             return;
         }
 
-        // It's safe to use UtcNowUnsynchronized since Tick is called by the Heartbeat.
-        var now = _systemClock.UtcNowUnsynchronized;
-        _timeoutControl.Tick(now);
-        _requestProcessor!.Tick(now);
+        var timestamp = _timeProvider.GetTimestamp();
+        _timeoutControl.Tick(timestamp);
+        _requestProcessor!.Tick(timestamp);
     }
 
     public void OnTimeout(TimeoutReason reason)

@@ -22,14 +22,6 @@ internal class Endpoint
         HttpMethod = GetHttpMethod(operation);
         EmitterContext = new EmitterContext();
 
-        if (!operation.TryGetRouteHandlerPattern(out var routeToken))
-        {
-            Diagnostics.Add(Diagnostic.Create(DiagnosticDescriptors.UnableToResolveRoutePattern, Operation.Syntax.GetLocation()));
-            return;
-        }
-
-        RoutePattern = routeToken;
-
         if (!operation.TryGetRouteHandlerMethod(semanticModel, out var method))
         {
             Diagnostics.Add(Diagnostic.Create(DiagnosticDescriptors.UnableToResolveMethod, Operation.Syntax.GetLocation()));
@@ -43,7 +35,6 @@ internal class Endpoint
             return;
         }
 
-        EmitterContext.HasJsonResponse = Response is not { ResponseType: { IsSealed: true } or { IsValueType: true } };
         IsAwaitable = Response?.IsAwaitable == true;
 
         EmitterContext.HasResponseMetadata = Response is { } response && !(response.IsIResult || response.HasNoResponse);

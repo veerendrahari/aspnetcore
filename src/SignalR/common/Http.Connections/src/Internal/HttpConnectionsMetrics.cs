@@ -3,49 +3,47 @@
 
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
-using Microsoft.Extensions.Metrics;
+using Microsoft.Extensions.Diagnostics.Metrics;
 
 namespace Microsoft.AspNetCore.Http.Connections.Internal;
+
+internal readonly struct MetricsContext
+{
+    public MetricsContext(bool connectionDurationEnabled, bool currentConnectionsCounterEnabled)
+    {
+        ConnectionDurationEnabled = connectionDurationEnabled;
+        CurrentConnectionsCounterEnabled = currentConnectionsCounterEnabled;
+    }
+
+    public bool ConnectionDurationEnabled { get; }
+    public bool CurrentConnectionsCounterEnabled { get; }
+}
 
 internal sealed class HttpConnectionsMetrics : IDisposable
 {
     public const string MeterName = "Microsoft.AspNetCore.Http.Connections";
 
     private readonly Meter _meter;
-    private readonly UpDownCounter<long> _currentConnectionsCounter;
     private readonly Histogram<double> _connectionDuration;
-    private readonly UpDownCounter<long> _currentTransportsCounter;
+    private readonly UpDownCounter<long> _currentConnectionsCounter;
 
     public HttpConnectionsMetrics(IMeterFactory meterFactory)
     {
-        _meter = meterFactory.CreateMeter(MeterName);
-
-        _currentConnectionsCounter = _meter.CreateUpDownCounter<long>(
-            "current-connections",
-            description: "Number of connections that are currently active on the server.");
+        _meter = meterFactory.Create(MeterName);
 
         _connectionDuration = _meter.CreateHistogram<double>(
-            "connection-duration",
+            "signalr-http-transport-connection-duration",
             unit: "s",
             description: "The duration of connections on the server.");
 
-        _currentTransportsCounter = _meter.CreateUpDownCounter<long>(
-            "current-transports",
-            description: "Number of negotiated transports that are currently active on the server.");
+        _currentConnectionsCounter = _meter.CreateUpDownCounter<long>(
+            "signalr-http-transport-current-connections",
+            description: "Number of connections that are currently active on the server.");
     }
 
-    public void ConnectionStart()
+    public void ConnectionStop(in MetricsContext metricsContext, HttpTransportType transportType, HttpConnectionStopStatus status, long startTimestamp, long currentTimestamp)
     {
-        // Tags must match connection end.
-        _currentConnectionsCounter.Add(1);
-    }
-
-    public void ConnectionStop(HttpTransportType transportType, HttpConnectionStopStatus status, long startTimestamp, long currentTimestamp)
-    {
-        // Tags must match connection start.
-        _currentConnectionsCounter.Add(-1);
-
-        if (_connectionDuration.Enabled)
+        if (metricsContext.ConnectionDurationEnabled)
         {
             var duration = Stopwatch.GetElapsedTime(startTimestamp, currentTimestamp);
             _connectionDuration.Record(duration.TotalSeconds,
@@ -54,21 +52,27 @@ internal sealed class HttpConnectionsMetrics : IDisposable
         }
     }
 
-    public void TransportStart(HttpTransportType transportType)
+    public void ConnectionTransportStart(in MetricsContext metricsContext, HttpTransportType transportType)
     {
         Debug.Assert(transportType != HttpTransportType.None);
 
         // Tags must match transport end.
-        _currentTransportsCounter.Add(1, new KeyValuePair<string, object?>("transport", transportType.ToString()));
+        if (metricsContext.CurrentConnectionsCounterEnabled)
+        {
+            _currentConnectionsCounter.Add(1, new KeyValuePair<string, object?>("transport", transportType.ToString()));
+        }
     }
 
-    public void TransportStop(HttpTransportType transportType)
+    public void TransportStop(in MetricsContext metricsContext, HttpTransportType transportType)
     {
-        // Tags must match transport start.
-        // If the transport type is none then the transport was never started for this connection.
-        if (transportType != HttpTransportType.None)
+        if (metricsContext.CurrentConnectionsCounterEnabled)
         {
-            _currentTransportsCounter.Add(-1, new KeyValuePair<string, object?>("transport", transportType.ToString()));
+            // Tags must match transport start.
+            // If the transport type is none then the transport was never started for this connection.
+            if (transportType != HttpTransportType.None)
+            {
+                _currentConnectionsCounter.Add(-1, new KeyValuePair<string, object?>("transport", transportType.ToString()));
+            }
         }
     }
 
@@ -77,5 +81,8 @@ internal sealed class HttpConnectionsMetrics : IDisposable
         _meter.Dispose();
     }
 
-    public bool IsEnabled() => _currentConnectionsCounter.Enabled || _connectionDuration.Enabled;
+    public MetricsContext CreateContext()
+    {
+        return new MetricsContext(_connectionDuration.Enabled, _currentConnectionsCounter.Enabled);
+    }
 }
