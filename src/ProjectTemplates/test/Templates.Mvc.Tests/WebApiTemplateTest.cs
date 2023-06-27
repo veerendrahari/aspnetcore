@@ -132,8 +132,7 @@ public class WebApiTemplateTest : LoggedTest
     [SkipOnHelix("Cert failure, https://github.com/dotnet/aspnetcore/issues/28090", Queues = "All.OSX;" + HelixConstants.Windows10Arm64 + HelixConstants.DebianArm64)]
     public Task WebApiTemplateProgramMainNoHttpsCSharp() => WebApiTemplateCore(languageOverride: null, args: new[] { ArgConstants.UseProgramMain, ArgConstants.NoHttps });
 
-    [ConditionalFact]
-    [SkipOnHelix("Cert failure, https://github.com/dotnet/aspnetcore/issues/28090", Queues = "All.OSX;" + HelixConstants.Windows10Arm64 + HelixConstants.DebianArm64)]
+    [Fact]
     public Task WebApiTemplateMinimalApisCSharp() => WebApiTemplateCore(languageOverride: null, args: new[] { ArgConstants.UseMinimalApis });
 
     [ConditionalFact]
