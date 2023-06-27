@@ -212,6 +212,7 @@ public class BlazorWasmTemplateTest : BlazorTemplateTest
         Assert.True(serviceWorkerContents.Contains($"/* Manifest version: {serviceWorkerAssetsManifestVersion} */", StringComparison.Ordinal));
     }
 
+    [Theory]
     [InlineData(BrowserKind.Chromium)]
     // LocalDB doesn't work on non Windows platforms
     [OSSkipCondition(OperatingSystems.Linux | OperatingSystems.MacOSX)]
