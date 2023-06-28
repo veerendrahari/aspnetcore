@@ -364,7 +364,7 @@ internal static class OutputCacheEntryFormatter
 
     static readonly string[] CommonHeaders = new string[]
     {
-        // to remove values, use ""; DO NOT just remove the line, and do not re-order
+        // DO NOT remove values, and do not re-order/insert - append only
         // NOTE: arbitrary common strings are fine - it doesn't all have to be headers
         HeaderNames.Accept,
         HeaderNames.AcceptCharset,
