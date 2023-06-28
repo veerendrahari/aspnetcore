@@ -43,19 +43,38 @@ internal static class OutputCacheEntryFormatter
         var buffer = new RecyclableArrayBufferWriter<byte>();
         Serialize(buffer, value);
 
-        string[] tagsArr = tags is { Count: > 0 } ? tags.ToArray() : Array.Empty<string>();
-
         if (store is IOutputCacheBufferStore bufferStore)
         {
-            await bufferStore.SetAsync(key, new(buffer.GetMemory()), tagsArr, duration, cancellationToken);
+            await bufferStore.SetAsync(key, new(buffer.GetMemory()), CopyToLeasedMemory(tags, out var lease), duration, cancellationToken);
+            if (lease is not null)
+            {
+                ArrayPool<string>.Shared.Return(lease);
+            }
         }
         else
         {
             // legacy API/in-proc: create an isolated right-sized byte[] for the payload
+            string[] tagsArr = tags is { Count: > 0 } ? tags.ToArray() : Array.Empty<string>();
             await store.SetAsync(key, buffer.ToArray(), tagsArr, duration, cancellationToken);
         }
 
         buffer.Dispose(); // this is intentionally not using "using"; only recycle on success, to avoid async code accessing shared buffers (esp. in cancellation)
+
+        static ReadOnlyMemory<string> CopyToLeasedMemory(HashSet<string>? tags, out string[]? lease)
+        {
+            if (tags is null || tags.Count == 0)
+            {
+                lease = null;
+                return default;
+            }
+            int index = 0;
+            lease = ArrayPool<string>.Shared.Rent(tags.Count);
+            foreach (var tag in tags)
+            {
+                lease[index++] = tag;
+            }
+            return new ReadOnlyMemory<string>(lease, 0, index);
+        }
     }
 
     // Format:
