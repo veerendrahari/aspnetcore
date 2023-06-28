@@ -114,14 +114,14 @@ internal class RedisOutputCacheStore : IOutputCacheStore, IOutputCacheBufferStor
                 catch (Exception ex)
                 {
                     // this sweep failed; log it
-                    _logger.LogDebug(ex, "Transient error occurred executing redis output-cache GC loop");
+                    _logger.LogWarning(ex, "Transient error occurred executing redis output-cache GC loop");
                 }
             }
         }
         catch (Exception ex)
         {
             // the entire loop is dead
-            _logger.LogDebug(ex, "Fatal error occurred executing redis output-cache GC loop");
+            _logger.LogError(ex, "Fatal error occurred executing redis output-cache GC loop");
         }
     }
 
