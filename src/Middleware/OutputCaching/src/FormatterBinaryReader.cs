@@ -33,7 +33,7 @@ internal ref struct FormatterBinaryReader
 
     public byte ReadByte()
     {
-        if (offset >= length)
+        if (IsEOF)
         {
             ThrowEndOfStream();
         }
