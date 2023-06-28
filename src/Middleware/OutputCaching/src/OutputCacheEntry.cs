@@ -103,7 +103,8 @@ internal sealed class OutputCacheEntry : IDisposable
         // only expected in create path; don't reset/recycle existing
         if (headers is not null)
         {
-            int count = headers.Count, index = 0;
+            var count = headers.Count;
+            var index = 0;
             if (count != 0)
             {
                 var arr = ArrayPool<(string, StringValues)>.Shared.Rent(count);
