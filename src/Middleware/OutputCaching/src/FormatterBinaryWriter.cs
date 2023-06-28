@@ -12,7 +12,7 @@ namespace Microsoft.AspNetCore.OutputCaching;
 internal ref struct FormatterBinaryWriter
 {
     // this is effectively a cut-down re-implementation of BinaryWriter
-    // from https://github.com/dotnet/runtime/blob/main/src/libraries/System.Private.CoreLib/src/System/IO/BinaryWriter.cs
+    // from https://github.com/dotnet/runtime/blob/3689fbec921418e496962dc0ee252bdc9eafa3de/src/libraries/System.Private.CoreLib/src/System/IO/BinaryWriter.cs
     // and is byte-compatible; however, instead of working against a Stream, we work against a IBufferWriter<byte>
     //
     // note it also has APIs for writing raw BLOBs

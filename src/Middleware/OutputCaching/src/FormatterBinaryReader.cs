@@ -11,7 +11,7 @@ namespace Microsoft.AspNetCore.OutputCaching;
 internal ref struct FormatterBinaryReader
 {
     // this is effectively a cut-down re-implementation of BinaryReader
-    // from https://github.com/dotnet/runtime/blob/main/src/libraries/System.Private.CoreLib/src/System/IO/BinaryReader.cs
+    // from https://github.com/dotnet/runtime/blob/3689fbec921418e496962dc0ee252bdc9eafa3de/src/libraries/System.Private.CoreLib/src/System/IO/BinaryReader.cs
     // and is byte-compatible; however, instead of working against a Stream, we work against a ReadOnlyMemory<byte>
     //
     // additionally, we add support for reading a string with length specified by the caller (rather than handled automatically),

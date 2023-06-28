@@ -44,7 +44,6 @@ internal static class OutputCacheEntryFormatter
         Serialize(buffer, value);
 
         string[] tagsArr = tags is { Count: > 0 } ? tags.ToArray() : Array.Empty<string>();
-        await store.SetAsync(key, buffer.ToArray(), tagsArr, duration, cancellationToken);
 
         if (store is IOutputCacheBufferStore bufferStore)
         {
