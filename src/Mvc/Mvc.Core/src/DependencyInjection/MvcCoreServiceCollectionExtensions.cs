@@ -275,6 +275,10 @@ public static class MvcCoreServiceCollectionExtensions
         // ProblemDetails
         services.TryAddSingleton<ProblemDetailsFactory, DefaultProblemDetailsFactory>();
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IProblemDetailsWriter, DefaultApiProblemDetailsWriter>());
+
+        // Anti-forgery
+        services.TryAddEnumerable(
+            ServiceDescriptor.Transient<IApplicationModelProvider, AntiforgeryApplicationModelProvider>());
     }
 
     private static void ConfigureDefaultServices(IServiceCollection services)

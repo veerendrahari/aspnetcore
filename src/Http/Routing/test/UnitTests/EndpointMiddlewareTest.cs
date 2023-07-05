@@ -1,6 +1,7 @@
 // Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors.Infrastructure;
 using Microsoft.AspNetCore.Http;
@@ -314,6 +315,103 @@ public class EndpointMiddlewareTest
         Assert.True(calledEndpoint);
     }
 
+    [Fact]
+    public async Task Invoke_WithEndpoint_ThrowsIfAntiforgeryMetadataWasFound_ButAntiforgeryMiddlewareNotInvoked()
+    {
+        // Arrange
+        var expected = "Endpoint Test contains anti-forgery metadata, but a middleware was not found that supports anti-forgery." +
+            Environment.NewLine +
+            "Configure your application startup by adding app.UseAntiforgery() in the application startup code. " +
+            "If there are calls to app.UseRouting() and app.UseEndpoints(...), the call to app.UseAntiforgery() must go between them.";
+        var httpContext = new DefaultHttpContext
+        {
+            RequestServices = new ServiceProvider()
+        };
+
+        RequestDelegate throwIfCalled = (c) =>
+        {
+            throw new InvalidTimeZoneException("Should not be called");
+        };
+
+        httpContext.SetEndpoint(new Endpoint(throwIfCalled, new EndpointMetadataCollection(new AntiforgeryMetadata(true)), "Test"));
+
+        var middleware = new EndpointMiddleware(NullLogger<EndpointMiddleware>.Instance, throwIfCalled, RouteOptions);
+
+        // Act & Assert
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => middleware.Invoke(httpContext));
+
+        // Assert
+        Assert.Equal(expected, ex.Message);
+    }
+
+    [Fact]
+    public async Task Invoke_WithEndpoint_WorksIfAntiforgeryMetadataWasFound_AndAntiforgeryMiddlewareInvoked()
+    {
+        // Arrange
+        var httpContext = new DefaultHttpContext
+        {
+            RequestServices = new ServiceProvider()
+        };
+
+        var calledEndpoint = false;
+        RequestDelegate endpointFunc = (c) =>
+        {
+            calledEndpoint = true;
+            return Task.CompletedTask;
+        };
+
+        httpContext.SetEndpoint(new Endpoint(endpointFunc, new EndpointMetadataCollection(new AntiforgeryMetadata(true)), "Test"));
+
+        httpContext.Items[EndpointMiddleware.AntiforgeryMiddlewareWithEndpointInvokedKey] = true;
+
+        RequestDelegate next = (c) =>
+        {
+            throw new InvalidTimeZoneException("Should not be called");
+        };
+
+        var middleware = new EndpointMiddleware(NullLogger<EndpointMiddleware>.Instance, next, RouteOptions);
+
+        // Act
+        await middleware.Invoke(httpContext);
+
+        // Assert
+        Assert.True(calledEndpoint);
+    }
+
+    [Fact]
+    public async Task Invoke_WithEndpoint_DoesNotThrowIfUnhandledAntiforgeryMetadataWereFound_ButSuppressedViaOptions()
+    {
+        // Arrange
+        var httpContext = new DefaultHttpContext
+        {
+            RequestServices = new ServiceProvider()
+        };
+
+        var calledEndpoint = false;
+        RequestDelegate endpointFunc = (c) =>
+        {
+            calledEndpoint = true;
+            return Task.CompletedTask;
+        };
+
+        httpContext.SetEndpoint(new Endpoint(endpointFunc, new EndpointMetadataCollection(new AntiforgeryMetadata(true)), "Test"));
+
+        var routeOptions = Options.Create(new RouteOptions { SuppressCheckForUnhandledSecurityMetadata = true });
+
+        RequestDelegate next = (c) =>
+        {
+            throw new InvalidTimeZoneException("Should not be called");
+        };
+
+        var middleware = new EndpointMiddleware(NullLogger<EndpointMiddleware>.Instance, next, routeOptions);
+
+        // Act
+        await middleware.Invoke(httpContext);
+
+        // Assert
+        Assert.True(calledEndpoint);
+    }
+
     private class ServiceProvider : IServiceProvider
     {
         public object GetService(Type serviceType)
@@ -321,4 +419,11 @@ public class EndpointMiddlewareTest
             throw new NotImplementedException();
         }
     }
+
+    private class AntiforgeryMetadata(bool required) : IAntiforgeryMetadata
+    {
+
+        public bool RequiresValidation { get; } = required;
+    }
+
 }

@@ -36,6 +36,7 @@
     <Compile Include="$(RepoRoot)src\Shared\ClosedGenericMatcher\ClosedGenericMatcher.cs" LinkBase="FormMapping" />
     <Compile Include="$(ComponentsSharedSourceRoot)src\CacheHeaderSettings.cs" Link="Shared\CacheHeaderSettings.cs" />
     <Compile Include="$(ComponentsSharedSourceRoot)src\DefaultAntiforgeryStateProvider.cs" LinkBase="Forms" />
+    <Compile Include="$(RepoRoot)src\Shared\AntiforgeryMetadata.cs" LinkBase="Forms" />
 
     <Compile Include="$(SharedSourceRoot)PropertyHelper\**\*.cs" />
 
