@@ -491,7 +491,7 @@ internal static class OutputCacheEntryFormatter
 
     private static readonly FrozenSet<string> IgnoredHeaders = FrozenSet.ToFrozenSet(new[] {
             HeaderNames.RequestId, HeaderNames.ContentLength, HeaderNames.Age
-    }, StringComparer.OrdinalIgnoreCase, optimizeForReading: true);
+    }, StringComparer.OrdinalIgnoreCase);
 
     private static readonly FrozenDictionary<string, int> CommonHeadersLookup = BuildCommonHeadersLookup();
 
@@ -507,7 +507,7 @@ internal static class OutputCacheEntryFormatter
                 pairs.Add(new(header, i));
             }
         }
-        return FrozenDictionary.ToFrozenDictionary(pairs, StringComparer.OrdinalIgnoreCase, optimizeForReading: true);
+        return FrozenDictionary.ToFrozenDictionary(pairs, StringComparer.OrdinalIgnoreCase);
     }
 
     internal static bool ShouldStoreHeader(string key) => !IgnoredHeaders.Contains(key);
