@@ -144,7 +144,7 @@ internal static class OutputCacheEntryFormatter
             //     For each header value:
             //       data byte length: 7-bit encoded int
             //       UTF-8 encoded byte[]
-            for (int i = 0; i < count; i++)
+            for (var i = 0; i < count; i++)
             {
                 WriteCommonHeader(ref writer, header.Value[i]);
             }
